@@ -67,9 +67,4 @@
   units = DDT
   dimensions = ()
   type = ccpp_t
-[one]
-  standard_name = ccpp_constant_one
-  long_name = definition of constant one
-  units = 1
-  dimensions = ()
-  type = integer
+

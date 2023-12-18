@@ -249,6 +249,8 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
     title = meta_header.title
     mht = meta_header.header_type
     fht = fort_header.header_type
+    #print("SWALES mht = ",mht,meta_header.title)
+    #print("SWALES fht = ",fht,fort_header.title)
     if mht != fht:
         # Special case, host metadata can be in a Fortran module or scheme
         if (mht != 'host') or (fht not in ('module', SCHEME_HEADER_TYPE)):
@@ -272,6 +274,16 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
             # end if
         # end for
         list_match = mlen == flen
+        # Since we can have any subset of the optional variables, we can't 
+        # enforce ordering for these variables declared at the end of the list
+        # Find length of required variables and use to limit ordering check below.
+        nrarg=mlen
+        for find, fvar in enumerate(flist):
+            if fvar.get_prop_value('optional'):
+                nrarg=find
+                break
+            # end if
+        # end for
         # Check for optional Fortran variables that are not in metadata
         if flen > mlen:
             for find, fvar in enumerate(flist):
@@ -328,7 +340,7 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
             # end if
             # Check order dependence
             if fht in _ORDERED_TABLE_TYPES:
-                if find != mind:
+                if find != mind and mind <= nrarg:
                     errmsg = 'Out of order argument, {} in {}'
                     errors_found = add_error(errors_found,
                                              errmsg.format(lname, title))
@@ -376,9 +388,12 @@ def check_fortran_against_metadata(meta_headers, fort_headers,
     NB: This routine destroys the list, <fort_headers> but returns the
        contents in an association dictionary on successful completion."""
     header_dict = {} # Associate a Fortran header for every metadata header
+#    print("SWALES(check_fortran_against_metadata):")
     for mheader in meta_headers:
+#        print("SWALES(check_fortran_against_metadata)_mheader: ",mheader)
         fheader = None
         mtitle = mheader.title
+#        print("SWALES(check_fortran_against_metadata)_mtitle: ",mtitle)
         for findex in range(len(fort_headers)): #pylint: disable=consider-using-enumerate
             if fort_headers[findex].title == mtitle:
                 fheader = fort_headers.pop(findex)
@@ -585,19 +600,35 @@ def capgen(run_env, return_db=False):
     # We need to create three lists of files, hosts, schemes, and SDFs
     host_files = create_file_list(run_env.host_files, ['meta'], 'Host',
                                   run_env.logger)
+    print("SWALES host_files",host_files)
+    print("--------")
     scheme_files = create_file_list(run_env.scheme_files, ['meta'],
                                     'Scheme', run_env.logger)
+    print("SWALES scheme_files")#,scheme_files)
+    print("--------")
     sdfs = create_file_list(run_env.suites, ['xml'], 'Suite', run_env.logger)
+    print("SWALES sdfs",sdfs)
+    print("--------")
     check_for_writeable_file(run_env.datatable_file, "Cap output datatable")
     ##XXgoldyXX: Temporary warning
     if run_env.generate_docfiles:
         raise CCPPError("--generate-docfiles not yet supported")
     # end if
     # First up, handle the host files
+    #print("SWALES scheme_files",scheme_files)
+    print("SWALES host_name",host_name)
+    print("--------")
     host_model = parse_host_model_files(host_files, host_name, run_env)
+    print("SWALES host_model",host_model.prop_list('standard_name'))
+    print("SWALES host_model.find_variable:",host_model.find_variable(standard_name='sw_fluxes_top_atmosphere'))
+    print("SWALES host_model.find_variable:",host_model.find_variable(standard_name='volume_mixing_ratio_of_ccl4'))
     # Next, parse the scheme files
     scheme_headers, scheme_tdict = parse_scheme_files(scheme_files, run_env)
+    print("SWALES scheme_headers")
+    print("--------")
     ddts = host_model.ddt_lib.keys()
+    print("SWALES ddts",ddts)
+    print("--------")
     if ddts and run_env.logger and run_env.logger.isEnabledFor(logging.DEBUG):
         run_env.logger.debug("DDT definitions = {}".format(ddts))
     # end if
@@ -608,6 +639,8 @@ def capgen(run_env, return_db=False):
                                                     for x in scheme_headers]))
     # Finally, we can get on with writing suites
     # Make sure to write to temporary location if files exist in <output_dir>
+    print("SWALES Writing suites...")
+    print("--------")
     if not os.path.exists(run_env.output_dir):
         # Try to create output_dir (let it crash if it fails)
         os.makedirs(run_env.output_dir)
@@ -625,16 +658,24 @@ def capgen(run_env, return_db=False):
         # end if
         os.makedirs(outtemp_dir)
     # end if
+    print("SWALES Calling API... 1")
+    print("--------")
     ccpp_api = API(sdfs, host_model, scheme_headers, run_env)
+    print("SWALES Calling API... 2")
+    print("--------")
     cap_filenames = ccpp_api.write(outtemp_dir, run_env)
     if run_env.generate_host_cap:
         # Create a cap file
+        print("SWALES write_host_cap()")
+        print("--------")
         host_files = [write_host_cap(host_model, ccpp_api,
                                      outtemp_dir, run_env)]
     else:
         host_files = list()
     # end if
     # Create the kinds file
+    print("SWALES Creating kinds file...")
+    print("--------")
     kinds_file = create_kinds_file(run_env, outtemp_dir)
     # Move any changed files to output_dir and remove outtemp_dir
     move_modified_files(outtemp_dir, run_env.output_dir,
@@ -647,6 +688,8 @@ def capgen(run_env, return_db=False):
     # end if
     # Finally, create the database of generated files and caps
     # This can be directly in output_dir because it will not affect dependencies
+    print("SWALES Create database...")
+    print("--------")
     src_dir = os.path.join(__FRAMEWORK_ROOT, "src")
     generate_ccpp_datatable(run_env, host_model, ccpp_api,
                             scheme_headers, scheme_tdict, host_files,

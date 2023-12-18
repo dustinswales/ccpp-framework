@@ -924,8 +924,8 @@ class VarCompatObj:
             if var1_dims or var2_dims:
                 _, vdim_ind = find_vertical_dimension(var1_dims)
                 if (var1_dims != var2_dims) or (vdim_ind >= 0):
-                    self.__dim_transforms = self._get_dim_transforms(var1_dims,
-                                                                     var2_dims)
+                    #self.__dim_transforms = self._get_dim_transforms(var1_dims,
+                    #                                                 var2_dims)
                     self.__compat = self.__dim_transforms is not None
                 # end if
             # end if

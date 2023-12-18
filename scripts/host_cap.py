@@ -429,6 +429,7 @@ def write_host_cap(host_model, api, output_dir, run_env):
         cap.write("! Private module variables", 1)
         const_dict = add_constituent_vars(cap, host_model, api.suites, run_env)
         cap.end_module_header()
+        print("SWALES (write_host_cap): 1")
         for stage in CCPP_STATE_MACH.transitions():
             # Create a dict of local variables for stage
             host_local_vars = VarDictionary("{}_{}".format(host_model.name,
@@ -450,12 +451,14 @@ def write_host_cap(host_model, api, output_dir, run_env):
                     # End for (loop over part variables)
                 # End for (loop of suite parts)
             # End for (loop over suites)
+            print("SWALES (write_host_cap): 2")
             run_stage = stage == 'run'
             # All interfaces need the suite name
             apivars = [_SUITE_NAME_VAR]
             if run_stage:
                 # Only the run phase needs a suite part name
                 apivars.append(_SUITE_PART_VAR)
+            print("SWALES (write_host_cap): 3")
             # End if
             # Create a list of dummy arguments with correct intent settings
             callvars = host_model.call_list(stage) # Host interface dummy args
@@ -475,11 +478,13 @@ def write_host_cap(host_model, api, output_dir, run_env):
                 hdvars.append(hvar.clone(subst_dict,
                                          source_name=API_SOURCE_NAME))
             # End for
+            print("SWALES (write_host_cap): 4")
             lnames = [x.get_prop_value('local_name') for x in apivars + hdvars]
             api_vlist = ", ".join(lnames)
             cap.write(_SUBHEAD.format(api_vars=api_vlist,
                                       host_model=host_model.name,
                                       stage=stage), 1)
+            print("SWALES (write_host_cap): 5")
             # Write out any suite part use statements
             for suite in api.suites:
                 mspc = (max_suite_len - len(suite.module))*' '
@@ -489,6 +494,7 @@ def write_host_cap(host_model, api, output_dir, run_env):
                     cap.write(stmt.format(suite.module, mspc, spart.name), 2)
                 # End for
             # End for
+            print("SWALES (write_host_cap): 6")
             # Write out any host model DDT input var use statements
             host_model.ddt_lib.write_ddt_use_statements(hdvars, cap, 2,
                                                         pad=max_suite_len)
@@ -512,9 +518,11 @@ def write_host_cap(host_model, api, output_dir, run_env):
             cap.write('{errmsg} = ""'.format(errmsg=errmsg_name), 2)
             else_str = ''
             for suite in api.suites:
+                print("SWALES (write_host_cap): 7")
                 stmt = "{}if (trim(suite_name) == '{}') then"
                 cap.write(stmt.format(else_str, suite.name), 2)
                 if stage == 'run':
+                    print("SWALES (write_host_cap): 8")
                     el2_str = ''
                     spart_list = suite_part_list(suite, stage)
                     for spart in spart_list:
@@ -535,12 +543,17 @@ def write_host_cap(host_model, api, output_dir, run_env):
                     cap.write("{errflg} = 1".format(errflg=errflg_name), 4)
                     cap.write("end if", 3)
                 else:
+                    print("SWALES (write_host_cap): 9")
                     spart = suite.phase_group(stage)
+                    print("SWALES (write_host_cap): 9a",spart)
+                    print("SWALES (write_host_cap): 9a",const_dict)
                     call_str = suite_part_call_list(host_model, const_dict,
                                                     spart, False)
+                    print("SWALES (write_host_cap): 9b",call_str)
                     stmt = "call {}_{}({})"
                     cap.write(stmt.format(suite.name, stage, call_str), 3)
                 # End if
+                print("SWALES (write_host_cap): 10")
                 else_str = 'else '
             # End for
             cap.write("else", 2)

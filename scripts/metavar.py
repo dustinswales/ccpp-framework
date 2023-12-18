@@ -768,11 +768,6 @@ class Var:
         Currently, an array of DDTs is not processed (return None) since
         Fortran does not support a way to reference those elements.
         """
-        if self.is_ddt():
-            element_names = None
-            raise ValueError("shouldn't happen?")
-            # To Do, find and process named elements of DDT
-        # end if
         children = self.children()
         if (not children) and check_dict:
             stdname = self.get_prop_value("standard_name")
@@ -1013,26 +1008,27 @@ class Var:
         else:
             comma = ' '
         # end if
+        cstr = "! {sname}"
         if self.is_ddt():
             if polymorphic:
-                dstr = "class({kind}){cspc}{intent} :: {name}{dims} ! {sname}"
+                dstr = "class({kind}){cspc}{intent} :: {name}{dims}"
                 cspc = comma + ' '*(extra_space + 12 - len(kind))
             else:
-                dstr = "type({kind}){cspc}{intent} :: {name}{dims} ! {sname}"
+                dstr = "type({kind}){cspc}{intent} :: {name}{dims}"
                 cspc = comma + ' '*(extra_space + 13 - len(kind))
             # end if
         else:
             if kind:
-                dstr = "{type}({kind}){cspc}{intent} :: {name}{dims} ! {sname}"
+                dstr = "{type}({kind}){cspc}{intent} :: {name}{dims}"
                 cspc = comma + ' '*(extra_space + 17 - len(vtype) - len(kind))
             else:
-                dstr = "{type}{cspc}{intent} :: {name}{dims} ! {sname}"
+                dstr = "{type}{cspc}{intent} :: {name}{dims}"
                 cspc = comma + ' '*(extra_space + 19 - len(vtype))
             # end if
         # end if
+        outfile.write(cstr.format(sname=stdname[:80]), indent)
         outfile.write(dstr.format(type=vtype, kind=kind, intent=intent_str,
-                                  name=name, dims=dimstr, cspc=cspc,
-                                  sname=stdname), indent)
+                                  name=name, dims=dimstr, cspc=cspc), indent)
 
     def is_ddt(self):
         """Return True iff <self> is a DDT type."""

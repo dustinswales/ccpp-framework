@@ -428,13 +428,15 @@ class SuiteObject(VarDictionary):
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
             # We need to make sure that this variable's dimensions are available
-            for vardim in newvar.get_dim_stdnames(include_constants=False):
-                dvar = self.find_variable(standard_name=vardim,
-                                          any_scope=True)
-                if dvar is None:
-                    emsg = "{}: Could not find dimension {} in {}"
-                    raise ParseInternalError(emsg.format(self.name,
-                                                         vardim, stdname))
+            # DJS2023: It is not(?) a CCPP requirement that the dimensions of the arguments
+            #          are passed into the schemes as arguments. So do we want to perform this check?
+#            for vardim in newvar.get_dim_stdnames(include_constants=False):
+#                dvar = self.find_variable(standard_name=vardim,
+#                                          any_scope=True)
+#                if dvar is None:
+#                    emsg = "{}: Could not find dimension {} in {}"
+#                    raise ParseInternalError(emsg.format(self.name,
+#                                                         vardim, stdname))
                 # end if
         elif self.parent is None:
             errmsg = 'No call_list found for {}'.format(newvar)
@@ -545,6 +547,7 @@ class SuiteObject(VarDictionary):
                     dim_match = ':'.join(nloop_subst.required_stdnames)
                 # end if
             elif not self.run_phase():
+                dim_match = ndim
                 if ((hdim == 'ccpp_constant_one:horizontal_dimension') and
                     (ndim == 'ccpp_constant_one:horizontal_loop_extent')):
                     dim_match = hdim
@@ -673,8 +676,8 @@ class SuiteObject(VarDictionary):
                             break
                         # end if
                     # end if
-                # end if
-            # end for
+                # end for
+            # end if
             if not found_ndim:
                 match = False
                 reason = 'Could not find dimension, ' + neddim + ', in '
@@ -1116,10 +1119,14 @@ class Scheme(SuiteObject):
             raise ParseInternalError(estr.format(self.name),
                                      context=self.__context)
         # end if
+        # DJS2023: This gets triggered when a scheme does not contain and run phase,
+        #          but has init/finalize phases. This should not be an error
+        #if my_header is None:
+        #    estr = 'No {} header found for scheme, {}'
+        #    raise ParseInternalError(estr.format(phase, self.name),
+        #                             context=self.__context)
         if my_header is None:
-            estr = 'No {} header found for scheme, {}'
-            raise ParseInternalError(estr.format(phase, self.name),
-                                     context=self.__context)
+            return set()
         # end if
         if my_header.module is None:
             estr = 'No module found for subroutine, {}'
@@ -1394,10 +1401,10 @@ class Subcycle(SuiteObject):
             self._loop_var_int = True
         except ValueError:
             self._loop_var_int = False
-            lvar = parent.find_variable(standard_name=self.loop, any_scope=True)
+            lvar = parent.find_variable(standard_name=self._loop, any_scope=True)
             if lvar is None:
                 emsg = "Subcycle, {}, specifies {} iterations but {} not found"
-                raise CCPPError(emsg.format(name, self.loop, self.loop))
+                raise CCPPError(emsg.format(name, self._loop, self._loop))
             # end if
             parent.add_call_list_variable(lvar)
         # end try
@@ -1416,7 +1423,7 @@ class Subcycle(SuiteObject):
         self.add_variable(Var({'local_name':self.name,
                                'standard_name':'loop_variable',
                                'type':'integer', 'units':'count',
-                               'dimensions':'()'}, _API_SOURCE, self.run_env),
+                               'dimensions':'()', 'intent':'in'}, _API_SOURCE, self.run_env),
                           self.run_env)
         # Handle all the suite objects inside of this subcycle
         scheme_mods = set()
@@ -1431,23 +1438,12 @@ class Subcycle(SuiteObject):
 
     def write(self, outfile, errcode, indent):
         """Write code for the subcycle loop, including contents, to <outfile>"""
-        outfile.write('do {} = 1, {}'.format(self.name, self.loop), indent)
+        outfile.write('do {} = 1, {}'.format(self.name, self._loop), indent)
         # Note that 'scheme' may be a sybcycle or other construct
         for item in self.parts:
             item.write(outfile, errcode, indent+1)
         # end for
         outfile.write('end do', 2)
-
-    @property
-    def loop(self):
-        """Return the loop value or variable local_name"""
-        lvar = self.find_variable(standard_name=self.loop, any_scope=True)
-        if lvar is None:
-            emsg = "Subcycle, {}, specifies {} iterations but {} not found"
-            raise CCPPError(emsg.format(self.name, self.loop, self.loop))
-        # end if
-        lname = lvar.get_prop_value('local_name')
-        return lname
 
 ###############################################################################
 

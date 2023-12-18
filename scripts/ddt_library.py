@@ -283,6 +283,10 @@ class DDTLibrary(dict):
                 # end if
                 # Add this intrinsic to <var_dict>
                 var_dict.add_variable(subvar, run_env)
+        # If DDT does not have any visible subfields, add DDT as variable.
+        if not ddt.variable_list():
+            var_dict.add_variable(var, run_env)
+
         # End for
 
     def ddt_modules(self, variable_list, ddt_mods=None):
