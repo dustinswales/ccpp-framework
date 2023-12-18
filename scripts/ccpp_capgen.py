@@ -27,11 +27,13 @@ from host_cap import write_host_cap
 from host_model import HostModel
 from metadata_table import parse_metadata_file, SCHEME_HEADER_TYPE
 from parse_tools import init_log, set_log_level, context_string
+from parse_tools import register_fortran_ddt_name
 from parse_tools import CCPPError, ParseInternalError
 
 ## Capture the Framework root
-__SCRIPT_PATH = os.path.dirname(__file__)
-__FRAMEWORK_ROOT = os.path.abspath(os.path.join(__SCRIPT_PATH, os.pardir))
+_SCRIPT_PATH = os.path.dirname(__file__)
+_FRAMEWORK_ROOT = os.path.abspath(os.path.join(_SCRIPT_PATH, os.pardir))
+_SRC_ROOT = os.path.join(_FRAMEWORK_ROOT, "src")
 ## Init this now so that all Exceptions can be trapped
 _LOGGER = init_log(os.path.basename(__file__))
 
@@ -43,6 +45,11 @@ _EXTRA_VARIABLE_TABLE_TYPES = ['module', 'host', 'ddt']
 
 ## Metadata table types where order is significant
 _ORDERED_TABLE_TYPES = [SCHEME_HEADER_TYPE]
+
+## CCPP Framework supported DDT types
+_CCPP_FRAMEWORK_DDT_TYPES = ["ccpp_hash_table_t",
+                             "ccpp_hashable_t",
+                             "ccpp_hashable_char_t"]
 
 ###############################################################################
 def delete_pathnames_from_file(capfile, logger):
@@ -594,6 +601,11 @@ def capgen(run_env, return_db=False):
         # Try to create output_dir (let it crash if it fails)
         os.makedirs(run_env.output_dir)
     # end if
+    # Pre-register base CCPP DDT types:
+    for ddt_name in _CCPP_FRAMEWORK_DDT_TYPES:
+        register_fortran_ddt_name(ddt_name)
+    # end for
+    src_dir = os.path.join(_FRAMEWORK_ROOT, "src")
     host_files = run_env.host_files
     host_name = run_env.host_name
     scheme_files = run_env.scheme_files
@@ -602,6 +614,11 @@ def capgen(run_env, return_db=False):
                                   run_env.logger)
     print("SWALES host_files",host_files)
     print("--------")
+    # The host model needs to know about the constituents module
+    const_mod = os.path.join(_SRC_ROOT, "ccpp_constituent_prop_mod.meta")
+    if const_mod not in host_files:
+        host_files.append(const_mod)
+    # end if
     scheme_files = create_file_list(run_env.scheme_files, ['meta'],
                                     'Scheme', run_env.logger)
     print("SWALES scheme_files")#,scheme_files)
@@ -619,21 +636,25 @@ def capgen(run_env, return_db=False):
     print("SWALES host_name",host_name)
     print("--------")
     host_model = parse_host_model_files(host_files, host_name, run_env)
-    print("SWALES host_model",host_model.prop_list('standard_name'))
-    print("SWALES host_model.find_variable:",host_model.find_variable(standard_name='sw_fluxes_top_atmosphere'))
-    print("SWALES host_model.find_variable:",host_model.find_variable(standard_name='volume_mixing_ratio_of_ccl4'))
+    # We always need to parse the ccpp_constituent_prop_ptr_t DDT
+    const_prop_mod = os.path.join(src_dir, "ccpp_constituent_prop_mod.meta")
+    if const_prop_mod not in scheme_files:
+        scheme_files = [const_prop_mod] + scheme_files
+    # end if
     # Next, parse the scheme files
     scheme_headers, scheme_tdict = parse_scheme_files(scheme_files, run_env)
     print("SWALES scheme_headers")
     print("--------")
-    ddts = host_model.ddt_lib.keys()
+    if run_env.verbose:
+        ddts = host_model.ddt_lib.keys()
+        if ddts:
+            run_env.logger.debug("DDT definitions = {}".format(ddts))
+        # end if
     print("SWALES ddts",ddts)
     print("--------")
-    if ddts and run_env.logger and run_env.logger.isEnabledFor(logging.DEBUG):
-        run_env.logger.debug("DDT definitions = {}".format(ddts))
     # end if
     plist = host_model.prop_list('local_name')
-    if run_env.logger and run_env.logger.isEnabledFor(logging.DEBUG):
+    if run_env.verbose:
         run_env.logger.debug("{} variables = {}".format(host_model.name, plist))
         run_env.logger.debug("schemes = {}".format([x.title
                                                     for x in scheme_headers]))
@@ -668,7 +689,8 @@ def capgen(run_env, return_db=False):
         # Create a cap file
         print("SWALES write_host_cap()")
         print("--------")
-        host_files = [write_host_cap(host_model, ccpp_api,
+        cap_module = host_model.ccpp_cap_name()
+        host_files = [write_host_cap(host_model, ccpp_api, cap_module,
                                      outtemp_dir, run_env)]
     else:
         host_files = list()
@@ -690,7 +712,6 @@ def capgen(run_env, return_db=False):
     # This can be directly in output_dir because it will not affect dependencies
     print("SWALES Create database...")
     print("--------")
-    src_dir = os.path.join(__FRAMEWORK_ROOT, "src")
     generate_ccpp_datatable(run_env, host_model, ccpp_api,
                             scheme_headers, scheme_tdict, host_files,
                             cap_filenames, kinds_file, src_dir)

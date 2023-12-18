@@ -91,6 +91,22 @@ class CallList(VarDictionary):
             # end if
         # end for
 
+    def add_variable(self, newvar, run_env, exists_ok=False, gen_unique=False,
+                     adjust_intent=False):
+        """Add <newvar> as for VarDictionary but make sure that the variable
+           has an intent with the default being intent(in).
+        """
+        # We really need an intent on a dummy argument
+        if newvar.get_prop_value("intent") is None:
+            subst_dict = {'intent' : 'in'}
+            oldvar = newvar
+            newvar = oldvar.clone(subst_dict, source_name=self.name,
+                                  source_type=_API_GROUP_VAR_NAME,
+                                  context=oldvar.context)
+        # end if
+        super().add_variable(newvar, run_env, exists_ok=exists_ok,
+                             gen_unique=gen_unique, adjust_intent=adjust_intent)
+
     def call_string(self, cldicts=None, is_func_call=False, subname=None):
         """Return a dummy argument string for this call list.
         <cldict> may be a list of VarDictionary objects to search for
@@ -884,7 +900,7 @@ class SuiteObject(VarDictionary):
                 # end if
             # end if
         # end if
-        return found_var, var_vdim, new_vdims, missing_vert, compat_obj, dict_var
+        return found_var, var_vdim, new_vdims, missing_vert, compat_obj
 
     def in_process_split(self):
         """Find out if we are in a process-split region"""
@@ -1135,16 +1151,13 @@ class Scheme(SuiteObject):
         # end if
         scheme_mods = set()
         scheme_mods.add((my_header.module, self.subroutine_name))
-        var_local = {"local_name":[], "std_name":[]}
         for var in my_header.variable_list():
-            var_local["local_name"].append(var.get_prop_value('local_name'))
-            var_local["std_name"].append(var.get_prop_value('standard_name'))
             vstdname = var.get_prop_value('standard_name')
             def_val = var.get_prop_value('default_value')
             vdims = var.get_dimensions()
             vintent = var.get_prop_value('intent')
             args = self.match_variable(var, self.run_env)
-            found, vert_dim, new_dims, missing_vert, compat_obj, suite_var = args
+            found, vert_dim, new_dims, missing_vert, compat_obj = args
             if found:
                 if not self.has_vertical_dim:
                     self.__has_vertical_dimension = vert_dim is not None
@@ -1200,32 +1213,11 @@ class Scheme(SuiteObject):
                 # end if
             # end if
             # Are there any forward/reverse transforms for this variable?
-            if compat_obj is not None and (compat_obj.has_vert_transforms or compat_obj.has_unit_transforms):
-                # Add local variable (<var>_local) needed for transformation.
-                tmp_var = var.clone(var.get_prop_value('local_name')+'_local')
-                self.__group.manage_variable(tmp_var)
+            if compat_obj is not None and (compat_obj.has_vert_transforms or
+                                           compat_obj.has_unit_transforms or
+                                           compat_obj.has_kind_transforms):
+                self.add_var_transform(var, compat_obj, vert_dim)
 
-                # Create indices, flipping if necessary.
-                indices = [':']*var.get_rank()
-                if compat_obj.has_vert_transforms:
-                    dim = find_vertical_dimension(var.get_dimensions())
-                    vdim_name = vert_dim.split(':')[-1]
-                    group_vvar = self.__group.call_list.find_variable(vdim_name)
-                    vname = group_vvar.get_prop_value('local_name')
-                    indices[dim[1]] = vname+':1:-1'
-
-                # Add any forward transforms.
-                if (var.get_prop_value('intent') != 'in'):
-                    self.__forward_transforms.append(
-                        compat_obj.forward_transform(lvar_lname=var.get_prop_value('local_name'),
-                                                     rvar_lname=tmp_var.get_prop_value('local_name'),
-                                                     indices=indices))
-                # Add any reverse transforms.
-                if (var.get_prop_value('intent') != 'out'):
-                    self.__reverse_transforms.append(
-                        compat_obj.reverse_transform(lvar_lname=tmp_var.get_prop_value('local_name'),
-                                                     rvar_lname=var.get_prop_value('local_name'),
-                                                     indices=indices))
         # end for
         if self.needs_vertical is not None:
             self.parent.add_part(self, replace=True) # Should add a vloop
@@ -1236,6 +1228,81 @@ class Scheme(SuiteObject):
             # end if
         # end if
         return scheme_mods
+
+    def add_var_transform(self, var, compat_obj, vert_dim):
+        """Register any variable transformation needed by <var> for this Scheme.
+        For any transformation identified in <compat_obj>, create dummy variable
+        from <var> to perform the transformation. Determine the indices needed
+        for the transform and save for use during write stage"""
+
+        # Add dummy variable (<var>_local) needed for transformation.
+        dummy = var.clone(var.get_prop_value('local_name')+'_local')
+        self.__group.manage_variable(dummy)
+
+        # Create indices (default) for transform.
+        lindices   = [':']*var.get_rank()
+        rindices   = [':']*var.get_rank()
+
+        # If needed, modify vertical dimension for vertical orientation flipping
+        _, vdim    = find_vertical_dimension(var.get_dimensions())
+        vdim_name  = vert_dim.split(':')[-1]
+        group_vvar = self.__group.call_list.find_variable(vdim_name)
+        vname      = group_vvar.get_prop_value('local_name')
+        lindices[vdim] = '1:'+vname
+        rindices[vdim] = '1:'+vname
+        if compat_obj.has_vert_transforms:
+            rindices[vdim] = vname+':1:-1'
+
+        # If needed, modify horizontal dimension for loop substitution.
+        # NOT YET IMPLEMENTED
+        #hdim = find_horizontal_dimension(var.get_dimensions())
+        #if compat_obj.has_dim_transforms:
+
+        #
+        # Register any reverse (pre-Scheme) transforms.
+        #
+        if (var.get_prop_value('intent') != 'out'):
+            self.__reverse_transforms.append([dummy.get_prop_value('local_name'),
+                                              var.get_prop_value('local_name'),
+                                              rindices, lindices, compat_obj])
+
+        #
+        # Register any forward (post-Scheme) transforms.
+        #
+        if (var.get_prop_value('intent') != 'in'):
+            self.__forward_transforms.append([var.get_prop_value('local_name'),
+                                              dummy.get_prop_value('local_name'),
+                                              lindices, rindices, compat_obj])
+
+    def write_var_transform(self, var, dummy, rindices, lindices, compat_obj,
+                            outfile, indent, forward):
+        """Write variable transformation needed to call this Scheme in <outfile>.
+        <var> is the varaible that needs transformation before and after calling Scheme.
+        <dummy> is the local variable needed for the transformation..
+        <lindices> are the LHS indices of <dummy> for reverse transforms (before Scheme).
+        <rindices> are the RHS indices of <var>   for reverse transforms (before Scheme).
+        <lindices> are the LHS indices of <var>   for forward transforms (after  Scheme).
+        <rindices> are the RHS indices of <dummy> for forward transforms (after  Scheme).
+        """
+        #
+        # Write reverse (pre-Scheme) transform.
+        #
+        if not forward:
+            # dummy(lindices) = var(rindices)
+            stmt = compat_obj.reverse_transform(lvar_lname=dummy,
+                                                rvar_lname=var,
+                                                lvar_indices=lindices,
+                                                rvar_indices=rindices)
+        #
+        # Write forward (post-Scheme) transform.
+        #
+        else:
+            # var(lindices) = dummy(rindices)
+            stmt = compat_obj.forward_transform(lvar_lname=var,
+                                                rvar_lname=dummy,
+                                                lvar_indices=rindices,
+                                                rvar_indices=lindices)
+        outfile.write(stmt, indent+1)
 
     def write(self, outfile, errcode, indent):
         # Unused arguments are for consistent write interface
@@ -1248,14 +1315,18 @@ class Scheme(SuiteObject):
         my_args = self.call_list.call_string(cldicts=cldicts,
                                              is_func_call=True,
                                              subname=self.subroutine_name)
-        stmt = 'call {}({})'
-        # Write the scheme call.
+
         outfile.write('if ({} == 0) then'.format(errcode), indent)
-        # Write any reverse transforms.
-        for reverse_transform in self.__reverse_transforms: outfile.write(reverse_transform, indent+1)
+        # Write any reverse (pre-Scheme) transforms.
+        for (dummy, var, rindices, lindices, compat_obj) in self.__reverse_transforms:
+            tstmt = self.write_var_transform(var, dummy, rindices, lindices, compat_obj, outfile, indent, False)
+        # Write the scheme call.
+        stmt = 'call {}({})'
         outfile.write(stmt.format(self.subroutine_name, my_args), indent+1)
-        # Write any forward transforms.
-        for forward_transform in self.__forward_transforms: outfile.write(forward_transform, indent+1)
+        # Write any forward (post-Scheme) transforms.
+        for (var, dummy, lindices, rindices, compat_obj) in self.__forward_transforms:
+            tstmt = self.write_var_transform(var, dummy, rindices, lindices, compat_obj, outfile, indent, True)
+        #
         outfile.write('end if', indent)
 
     def schemes(self):
@@ -1318,7 +1389,7 @@ class VerticalLoop(SuiteObject):
         # self._local_dim_name is the variable name for self._dim_name
         self._local_dim_name = None
         super().__init__(index_name, context, parent, run_env)
-        if run_env.logger and run_env.logger.isEnabledFor(logging.DEBUG):
+        if run_env.verbose:
             lmsg = "Adding VerticalLoop for '{}'"
             run_env.logger.debug(lmsg.format(index_name))
         # end if
@@ -1618,7 +1689,7 @@ class Group(SuiteObject):
             # Add the missing dim
             vaction.add_local(self, _API_LOCAL, self.run_env)
             return True
-
+        # end if
         return False
 
     def manage_variable(self, newvar):
