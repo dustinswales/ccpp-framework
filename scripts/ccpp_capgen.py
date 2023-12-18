@@ -650,8 +650,8 @@ def capgen(run_env, return_db=False):
         if ddts:
             run_env.logger.debug("DDT definitions = {}".format(ddts))
         # end if
-    print("SWALES ddts",ddts)
-    print("--------")
+        print("SWALES ddts",ddts)
+        print("--------")
     # end if
     plist = host_model.prop_list('local_name')
     if run_env.verbose:

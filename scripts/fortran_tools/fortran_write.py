@@ -25,7 +25,7 @@ class FortranWriter:
 
     __LINE_FILL = 97      # Target line length
 
-    __LINE_MAX = 130      # Max line length
+    __LINE_MAX = 140      # Max line length
 
     # CCPP copyright statement to be included in all generated Fortran files
     __COPYRIGHT = '''!
