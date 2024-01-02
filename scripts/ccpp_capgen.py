@@ -256,8 +256,6 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
     title = meta_header.title
     mht = meta_header.header_type
     fht = fort_header.header_type
-    #print("SWALES mht = ",mht,meta_header.title)
-    #print("SWALES fht = ",fht,fort_header.title)
     if mht != fht:
         # Special case, host metadata can be in a Fortran module or scheme
         if (mht != 'host') or (fht not in ('module', SCHEME_HEADER_TYPE)):
@@ -395,12 +393,9 @@ def check_fortran_against_metadata(meta_headers, fort_headers,
     NB: This routine destroys the list, <fort_headers> but returns the
        contents in an association dictionary on successful completion."""
     header_dict = {} # Associate a Fortran header for every metadata header
-#    print("SWALES(check_fortran_against_metadata):")
     for mheader in meta_headers:
-#        print("SWALES(check_fortran_against_metadata)_mheader: ",mheader)
         fheader = None
         mtitle = mheader.title
-#        print("SWALES(check_fortran_against_metadata)_mtitle: ",mtitle)
         for findex in range(len(fort_headers)): #pylint: disable=consider-using-enumerate
             if fort_headers[findex].title == mtitle:
                 fheader = fort_headers.pop(findex)
@@ -612,7 +607,9 @@ def capgen(run_env, return_db=False):
     # We need to create three lists of files, hosts, schemes, and SDFs
     host_files = create_file_list(run_env.host_files, ['meta'], 'Host',
                                   run_env.logger)
-    print("SWALES host_files",host_files)
+    print("--------")
+    print("SWALES host_files")
+    print("        ",host_files)
     print("--------")
     # The host model needs to know about the constituents module
     const_mod = os.path.join(_SRC_ROOT, "ccpp_constituent_prop_mod.meta")
@@ -621,10 +618,14 @@ def capgen(run_env, return_db=False):
     # end if
     scheme_files = create_file_list(run_env.scheme_files, ['meta'],
                                     'Scheme', run_env.logger)
-    print("SWALES scheme_files")#,scheme_files)
+    print("--------")
+    print("SWALES scheme_files")
+    print("        ",scheme_files)
     print("--------")
     sdfs = create_file_list(run_env.suites, ['xml'], 'Suite', run_env.logger)
-    print("SWALES sdfs",sdfs)
+    print("--------")
+    print("SWALES sdfs")
+    print("        ",sdfs)
     print("--------")
     check_for_writeable_file(run_env.datatable_file, "Cap output datatable")
     ##XXgoldyXX: Temporary warning
@@ -633,7 +634,9 @@ def capgen(run_env, return_db=False):
     # end if
     # First up, handle the host files
     #print("SWALES scheme_files",scheme_files)
-    print("SWALES host_name",host_name)
+    print("--------")
+    print("SWALES host_name")
+    print("        ",host_name)
     print("--------")
     host_model = parse_host_model_files(host_files, host_name, run_env)
     # We always need to parse the ccpp_constituent_prop_ptr_t DDT
@@ -643,7 +646,9 @@ def capgen(run_env, return_db=False):
     # end if
     # Next, parse the scheme files
     scheme_headers, scheme_tdict = parse_scheme_files(scheme_files, run_env)
+    print("--------")
     print("SWALES scheme_headers")
+    print("        ")#,scheme_headers)
     print("--------")
     if run_env.verbose:
         ddts = host_model.ddt_lib.keys()

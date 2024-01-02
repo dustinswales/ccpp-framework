@@ -78,6 +78,7 @@ def line_statements(line):
     line_len = len(line)
     in_single_char = False
     in_double_char = False
+#    print("SWALES line_statements:",line)
     while ind_end < line_len:
         if in_single_char:
             if line[ind_end] == "'":
@@ -120,6 +121,7 @@ def read_statements(pobj, statements=None):
             statements = None
             break
         # End if
+#        print("SWALES: pobj = ",pobj)
         statements = line_statements(nline)
     # End while
     return statements
@@ -659,6 +661,10 @@ def parse_scheme_metadata(statements, pobj, spec_name, table_name, run_env):
                 scheme_name = smatch.group(1)
                 inpreamble = scheme_name.lower() == table_name.lower()
                 if inpreamble:
+#                    print("SWALES: statement", statement)
+#                    print("SWALES: smatch  = ",smatch)
+#                    print("SWALES: esmatch = ",esmatch)
+#                    print("SWALES: pobj    = ",pobj)
                     if smatch.group(2) is not None:
                         smstr = smatch.group(2).strip()
                         if len(smstr) > 0:
@@ -667,13 +673,17 @@ def parse_scheme_metadata(statements, pobj, spec_name, table_name, run_env):
                             smlist = list()
                         # End if
                         scheme_args = [x.strip().lower() for x in smlist]
+#                        print("    SWALES: 1 ",scheme_args)
                     else:
                         scheme_args = list()
+#                        print("    SWALES: 2 ")
                     # End if
                     # Create a dict template with all the scheme's arguments
                     # in the correct order
+#                    print("    SWALES: 3 ")
                     vdict = OrderedDict()
                     for arg in scheme_args:
+#                        print("       SWALES: 3a ")
                         if len(arg) == 0:
                             errmsg = 'Empty argument{}'
                             raise ParseInternalError(errmsg.format(pobj))
@@ -686,6 +696,7 @@ def parse_scheme_metadata(statements, pobj, spec_name, table_name, run_env):
                         vdict[arg] = None
                     # End for
                     psrc = ParseSource(scheme_name, 'scheme', pobj)
+#                    print("    SWALES: 4 ")
                 # End if
             elif inpreamble or seen_contains:
                 # Process a preamble statement (use or argument declaration)
@@ -716,6 +727,7 @@ def parse_scheme_metadata(statements, pobj, spec_name, table_name, run_env):
             # End if
         # End while
         if insub and (len(statements) == 0):
+#            print("SWALES read_statements:")
             statements = read_statements(pobj)
         # End if
     # End while

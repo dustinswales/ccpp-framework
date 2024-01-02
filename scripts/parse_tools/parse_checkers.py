@@ -119,6 +119,7 @@ def check_dimensions(test_val, prop_dict, error, max_len=0):
             # Check possible dim styles (a, a:b, a:, :b, :, ::, a:b:c, a::c)
             tdims = [x.strip() for x in isplit if len(x) > 0]
             for tdim in tdims:
+#                print("SWALES tdim = ",tdim)
                 # Check numeric value first
                 try:
                     valid = isinstance(int(tdim), int)
@@ -261,7 +262,7 @@ def check_fortran_id(test_val, prop_dict, error, max_len=0):
     match = __FID_RE.match(test_val)
     if match is None:
         if error:
-            raise CCPPError("'{}' is not a valid Fortran identifier".format(test_val))
+            raise CCPPError("'{}' is not a valid Fortran identifier SWALES".format(test_val))
         else:
             test_val = None
         # end if

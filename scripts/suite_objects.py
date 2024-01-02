@@ -1085,6 +1085,7 @@ class Scheme(SuiteObject):
         self.__group = None
         self.__forward_transforms = list()
         self.__reverse_transforms = list()
+        self._no_run_phase = False
         super().__init__(name, context, parent, run_env, active_call_list=True)
 
     def update_group_call_list_variable(self, var):
@@ -1129,20 +1130,14 @@ class Scheme(SuiteObject):
             if phase in func:
                 my_header = func[phase]
                 self.__subroutine_name = my_header.title
+            else:
+                self._no_run_phase = True
+                return set()
             # end if
         else:
             estr = 'No schemes found for {}'
             raise ParseInternalError(estr.format(self.name),
                                      context=self.__context)
-        # end if
-        # DJS2023: This gets triggered when a scheme does not contain and run phase,
-        #          but has init/finalize phases. This should not be an error
-        #if my_header is None:
-        #    estr = 'No {} header found for scheme, {}'
-        #    raise ParseInternalError(estr.format(phase, self.name),
-        #                             context=self.__context)
-        if my_header is None:
-            return set()
         # end if
         if my_header.module is None:
             estr = 'No module found for subroutine, {}'
@@ -1516,6 +1511,11 @@ class Subcycle(SuiteObject):
         # end for
         outfile.write('end do', 2)
 
+    @property
+    def loop(self):
+        """Return the loop variable over which this Subcycle cycles"""
+        return self._loop
+
 ###############################################################################
 
 class TimeSplit(SuiteObject):
@@ -1881,6 +1881,9 @@ class Group(SuiteObject):
         for scheme in self._local_schemes:
             smod = scheme[0]
             sname = scheme[1]
+            # For schemes with "host variants" (e.g. GFS_time.HOST.F90)
+            if "." in smod:
+                smod = smod[0:smod.find(".")]
             slen = ' '*(modmax - len(smod))
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
