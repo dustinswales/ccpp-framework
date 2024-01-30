@@ -217,7 +217,7 @@ def parse_metadata_file(filename, known_ddts, run_env):
                                    context=parse_obj)
         # end if
     # end while
-    return meta_tables
+    return meta_tables, table_titles
 
 ########################################################################
 

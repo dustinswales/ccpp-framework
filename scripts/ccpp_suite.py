@@ -7,6 +7,7 @@ to implement calls to a set of suites for a given host model."""
 # Python library imports
 import os.path
 import logging
+import filecmp
 import xml.etree.ElementTree as ET
 # CCPP framework imports
 from ccpp_state_machine import CCPP_STATE_MACH, RUN_PHASE_NAME
@@ -22,6 +23,11 @@ from parse_tools import ParseInternalError, CCPPError
 from parse_tools import read_xml_file, validate_xml_file, find_schema_version
 from parse_tools import init_log, set_log_to_null
 from suite_objects import CallList, Group, Scheme
+from mkcap import CapsMakefile, CapsCMakefile, CapsSourcefile
+from mkcap import SchemesMakefile, SchemesCMakefile, SchemesSourcefile
+from mkcap import TypedefsMakefile, TypedefsCMakefile, TypedefsSourcefile
+from mkcap import APIMakefile, APICMakefile, APISourcefile
+from mkcap import KindsMakefile, KindsCMakefile, KindsSourcefile
 
 # pylint: disable=too-many-lines
 
@@ -1127,6 +1133,60 @@ class API(VarDictionary):
         self.write_req_vars_sub(ofile, errmsg_name, errcode_name)
         # Write out the suite scheme list subroutine
         self.write_suite_schemes_sub(ofile, errmsg_name, errcode_name)
+
+    def write_makefile(self, obj_, name_, name_makefile, name_cmakefile, name_sourcefile):
+        """Generate makefile/cmakefile snippets"""
+        if obj_ is "TYPEDEFS":
+            makefile   = TypedefsMakefile()
+            cmakefile  = TypedefsCMakefile()
+            sourcefile = TypedefsSourcefile()
+        elif obj_ is "SCHEMES":
+            makefile   = SchemesMakefile()
+            cmakefile  = SchemesCMakefile()
+            sourcefile = SchemesSourcefile()
+        elif obj_ is "CAPS":
+            makefile   = CapsMakefile()
+            cmakefile  = CapsCMakefile()
+            sourcefile = CapsSourcefile()
+        elif obj_ is "API":
+            makefile   = APIMakefile()
+            cmakefile  = APICMakefile()
+            sourcefile = APISourcefile()
+        elif obj_ is "KINDS":
+            makefile   = KindsMakefile()
+            cmakefile  = KindsCMakefile()
+            sourcefile = KindsSourcefile()
+        else:
+            return
+        # end if
+        makefile.filename   = name_makefile + '.tmp'
+        cmakefile.filename  = name_cmakefile + '.tmp'
+        sourcefile.filename = name_sourcefile + '.tmp'
+        # Sort _name so that the order remains the same (for cmake to avoid) recompiling
+        if isinstance(name_, list): name_.sort()
+        # Generate list of type definitions
+        makefile.write(name_)
+        cmakefile.write(name_)
+        sourcefile.write(name_)
+        if os.path.isfile(name_makefile) and \
+           filecmp.cmp(name_makefile, makefile.filename):
+            os.remove(makefile.filename)
+            os.remove(cmakefile.filename)
+            os.remove(sourcefile.filename)
+        else:
+            if os.path.isfile(name_makefile):
+                os.remove(name_makefile)
+            # end if
+            if os.path.isfile(name_cmakefile):
+                os.remove(name_cmakefile)
+            # end if
+            if os.path.isfile(name_sourcefile):
+                os.remove(name_sourcefile)
+            # end if
+            os.rename(makefile.filename, name_makefile)
+            os.rename(cmakefile.filename, name_cmakefile)
+            os.rename(sourcefile.filename, name_sourcefile)
+        # end if
 
     @property
     def module(self):

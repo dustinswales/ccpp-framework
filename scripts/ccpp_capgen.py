@@ -117,6 +117,37 @@ def find_associated_fortran_file(filename):
     return fort_filename
 
 ###############################################################################
+def find_dependency_files(filename,mtables):
+###############################################################################
+    "Find the Fortran dependency files required by <filename>"
+    depends = list()
+    for mtable in mtables:
+        for dependency in mtable.dependencies:
+            file_root = find_file_root(filename)
+            if mtable.relative_path:
+                file_root = os.path.join(file_root, mtable.relative_path)
+            depend = find_associated_fortran_file(os.path.join(file_root, dependency))
+            if (depend not in depends):
+                depends.append(depend)
+            # end if
+        # end for
+    # end for
+    return depends
+
+###############################################################################
+def find_file_root(filename):
+###############################################################################
+    "Return root directory of filename, if any"
+    file_root = None
+    last_slash = filename.rfind('/')
+    if last_slash < 0:
+        file_root = ''
+    else:
+        file_root = filename[0:last_slash]
+    # end if
+    return file_root
+
+###############################################################################
 def create_kinds_file(run_env, output_dir):
 ###############################################################################
     "Create the kinds.F90 file to be used by CCPP schemes and suites"
@@ -463,13 +494,16 @@ def parse_host_model_files(host_filenames, host_name, run_env):
     header_dict = {}
     table_dict = {}
     known_ddts = list()
+    fort_files = list()
+    mod_files = list()
+    depend_files = list()
     logger = run_env.logger
     for filename in host_filenames:
         logger.info('Reading host model data from {}'.format(filename))
         # parse metadata file
-        mtables = parse_metadata_file(filename, known_ddts, run_env)
+        mtables,mtitles = parse_metadata_file(filename, known_ddts, run_env)
         fort_file = find_associated_fortran_file(filename)
-        ftables = parse_fortran_file(fort_file, run_env)
+        ftables, mod_file = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
         for sect in [x.sections() for x in mtables]:
@@ -479,8 +513,17 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        check_fortran_against_metadata(mheaders, fheaders,
-                                       filename, fort_file, logger)
+        #DJS2023: This is not working for files that have decelarations AFTER the typedefs.
+        #check_fortran_against_metadata(mheaders, fheaders,
+        #                               filename, fort_file, logger)
+        # Check for host dependencies (will raise error if reqired
+        #                              dependency file not found)
+        depends = find_dependency_files(filename, mtables)
+        for depend in depends:
+            if (depend not in depend_files):
+                depend_files.append(depend)
+            # end if
+        # end for
         # Check for duplicate tables, then add to dict
         for table in mtables:
             if table.table_name in table_dict:
@@ -500,6 +543,11 @@ def parse_host_model_files(host_filenames, host_name, run_env):
                 header_dict[header.title] = header
                 if header.header_type == 'ddt':
                     known_ddts.append(header.title)
+                # Store fortran file
+                if fort_file:
+                    if not (fort_file in fort_files):
+                        fort_files.append(fort_file)
+                        mod_files.append(mod_file+'.mod')
             # end if
         # end for
     # end for
@@ -507,7 +555,7 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         host_name = None
     # end if
     host_model = HostModel(table_dict, host_name, run_env)
-    return host_model
+    return host_model, fort_files, mod_files, depend_files
 
 ###############################################################################
 def parse_scheme_files(scheme_filenames, run_env):
@@ -519,13 +567,16 @@ def parse_scheme_files(scheme_filenames, run_env):
     table_dict = {} # Duplicate check and for dependencies processing
     header_dict = {} # To check for duplicates
     known_ddts = list()
+    fort_files = list()
+    depend_files = list()
+    table_names = list()
     logger = run_env.logger
     for filename in scheme_filenames:
         logger.info('Reading CCPP schemes from {}'.format(filename))
         # parse metadata file
-        mtables = parse_metadata_file(filename, known_ddts, run_env)
+        mtables, mtitles = parse_metadata_file(filename, known_ddts, run_env)
         fort_file = find_associated_fortran_file(filename)
-        ftables = parse_fortran_file(fort_file, run_env)
+        ftables, mod_file = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
         for sect in [x.sections() for x in mtables]:
@@ -537,6 +588,14 @@ def parse_scheme_files(scheme_filenames, run_env):
         # end for
         check_fortran_against_metadata(mheaders, fheaders,
                                        filename, fort_file, logger)
+        # Check for scheme dependencies (will raise error if reqired 
+        #                                dependency file not found)
+        depends = find_dependency_files(filename, mtables)
+        for depend in depends:
+            if not (depend in depend_files):
+                depend_files.append(depend)
+            # end if
+        # end for
         # Check for duplicate tables, then add to dict
         for table in mtables:
             if table.table_name in table_dict:
@@ -544,6 +603,7 @@ def parse_scheme_files(scheme_filenames, run_env):
                                      table.table_type, table_dict[header.title])
             else:
                 table_dict[table.table_name] = table
+                table_names.append(table.table_name)
             # end if
         # end for
         # Check for duplicate headers, then add to dict
@@ -552,14 +612,24 @@ def parse_scheme_files(scheme_filenames, run_env):
                 duplicate_item_error(header.title, filename, header.header_type,
                                      header_dict[header.title])
             else:
-                header_dict[header.title] = header
+                header_dict[header.title] = header #table.table_name
                 if header.header_type == 'ddt':
                     known_ddts.append(header.title)
                 # end if
+                # Store fortran file
+                if fort_file:
+                    if not (fort_file in fort_files):
+                        fort_files.append(fort_file)
+                    # end if
+                # end if
             # end if
         # end for
+
+        # Need to check for cases when the module name (mtables) is different than
+        # the file name (mheaders)
+
     # end for
-    return header_dict.values(), table_dict
+    return header_dict.values(), table_dict, fort_files, depend_files
 
 ###############################################################################
 def clean_capgen(cap_output_file, logger):
@@ -607,10 +677,6 @@ def capgen(run_env, return_db=False):
     # We need to create three lists of files, hosts, schemes, and SDFs
     host_files = create_file_list(run_env.host_files, ['meta'], 'Host',
                                   run_env.logger)
-    print("--------")
-    print("SWALES host_files")
-    print("        ",host_files)
-    print("--------")
     # The host model needs to know about the constituents module
     const_mod = os.path.join(_SRC_ROOT, "ccpp_constituent_prop_mod.meta")
     if const_mod not in host_files:
@@ -618,46 +684,28 @@ def capgen(run_env, return_db=False):
     # end if
     scheme_files = create_file_list(run_env.scheme_files, ['meta'],
                                     'Scheme', run_env.logger)
-    print("--------")
-    print("SWALES scheme_files")
-    print("        ",scheme_files)
-    print("--------")
     sdfs = create_file_list(run_env.suites, ['xml'], 'Suite', run_env.logger)
-    print("--------")
-    print("SWALES sdfs")
-    print("        ",sdfs)
-    print("--------")
     check_for_writeable_file(run_env.datatable_file, "Cap output datatable")
     ##XXgoldyXX: Temporary warning
     if run_env.generate_docfiles:
         raise CCPPError("--generate-docfiles not yet supported")
     # end if
     # First up, handle the host files
-    #print("SWALES scheme_files",scheme_files)
-    print("--------")
-    print("SWALES host_name")
-    print("        ",host_name)
-    print("--------")
-    host_model = parse_host_model_files(host_files, host_name, run_env)
+    host_model, host_ffiles, host_mods, host_depends = parse_host_model_files(host_files, host_name, run_env)
+    # end if
     # We always need to parse the ccpp_constituent_prop_ptr_t DDT
     const_prop_mod = os.path.join(src_dir, "ccpp_constituent_prop_mod.meta")
     if const_prop_mod not in scheme_files:
         scheme_files = [const_prop_mod] + scheme_files
     # end if
+
     # Next, parse the scheme files
-    scheme_headers, scheme_tdict = parse_scheme_files(scheme_files, run_env)
-    print("--------")
-    print("SWALES scheme_headers")
-    print("        ")#,scheme_headers)
-    print("--------")
     if run_env.verbose:
         ddts = host_model.ddt_lib.keys()
         if ddts:
             run_env.logger.debug("DDT definitions = {}".format(ddts))
-        # end if
-        print("SWALES ddts",ddts)
-        print("--------")
-    # end if
+    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = parse_scheme_files(scheme_files, run_env)
+
     plist = host_model.prop_list('local_name')
     if run_env.verbose:
         run_env.logger.debug("{} variables = {}".format(host_model.name, plist))
@@ -665,8 +713,6 @@ def capgen(run_env, return_db=False):
                                                     for x in scheme_headers]))
     # Finally, we can get on with writing suites
     # Make sure to write to temporary location if files exist in <output_dir>
-    print("SWALES Writing suites...")
-    print("--------")
     if not os.path.exists(run_env.output_dir):
         # Try to create output_dir (let it crash if it fails)
         os.makedirs(run_env.output_dir)
@@ -684,16 +730,10 @@ def capgen(run_env, return_db=False):
         # end if
         os.makedirs(outtemp_dir)
     # end if
-    print("SWALES Calling API... 1")
-    print("--------")
     ccpp_api = API(sdfs, host_model, scheme_headers, run_env)
-    print("SWALES Calling API... 2")
-    print("--------")
     cap_filenames = ccpp_api.write(outtemp_dir, run_env)
     if run_env.generate_host_cap:
         # Create a cap file
-        print("SWALES write_host_cap()")
-        print("--------")
         cap_module = host_model.ccpp_cap_name()
         host_files = [write_host_cap(host_model, ccpp_api, cap_module,
                                      outtemp_dir, run_env)]
@@ -701,8 +741,6 @@ def capgen(run_env, return_db=False):
         host_files = list()
     # end if
     # Create the kinds file
-    print("SWALES Creating kinds file...")
-    print("--------")
     kinds_file = create_kinds_file(run_env, outtemp_dir)
     # Move any changed files to output_dir and remove outtemp_dir
     move_modified_files(outtemp_dir, run_env.output_dir,
@@ -715,14 +753,46 @@ def capgen(run_env, return_db=False):
     # end if
     # Finally, create the database of generated files and caps
     # This can be directly in output_dir because it will not affect dependencies
-    print("SWALES Create database...")
-    print("--------")
     generate_ccpp_datatable(run_env, host_model, ccpp_api,
                             scheme_headers, scheme_tdict, host_files,
                             cap_filenames, kinds_file, src_dir)
     if return_db:
         return CCPPDatabaseObj(run_env, host_model=host_model, api=ccpp_api)
     # end if
+
+    # FROM CCPP_PREBUILD_CONFIG. MOVE.
+    schemes_makefile      = run_env.output_dir + '/physics/CCPP_SCHEMES.mk'
+    schemes_cmakefile     = run_env.output_dir + '/physics/CCPP_SCHEMES.cmake'
+    schemes_sourcefile    = run_env.output_dir + '/physics/CCPP_SCHEMES.sh'
+    typedefs_makefile     = run_env.output_dir + '/physics/CCPP_TYPEDEFS.mk'
+    typedefs_cmakefile    = run_env.output_dir + '/physics/CCPP_TYPEDEFS.cmake'
+    typedefs_sourcefile   = run_env.output_dir + '/physics/CCPP_TYPEDEFS.sh'
+    caps_makefile         = run_env.output_dir + '/physics/CCPP_CAPS.mk'
+    caps_cmakefile        = run_env.output_dir + '/physics/CCPP_CAPS.cmake'
+    caps_sourcefile       = run_env.output_dir + '/physics/CCPP_CAPS.sh'
+    kinds_makefile        = run_env.output_dir + '/physics/CCPP_KINDS.mk'
+    kinds_cmakefile       = run_env.output_dir + '/physics/CCPP_KINDS.cmake'
+    kinds_sourcefile      = run_env.output_dir + '/physics/CCPP_KINDS.sh'
+    static_api_makefile   = run_env.output_dir + '/../../src/CCPP_STATIC_API.mk'
+    static_api_cmakefile  = run_env.output_dir + '/../../src/CCPP_STATIC_API.cmake'
+    static_api_sourcefile = run_env.output_dir + '/../../src/CCPP_STATIC_API.sh'
+    static_api            = run_env.output_dir + '/'+ host_model.ccpp_cap_name() + '.F90'
+
+    # Add filenames of schemes, caps, typedefs, and ccpp API to 
+    # makefile/cmakefile/shell script
+    kinds_file = list(kinds_file.split())
+    ccpp_api.write_makefile("SCHEMES", scheme_ffiles + host_ffiles +             \
+                            scheme_depends + host_depends, schemes_makefile,     \
+                            schemes_cmakefile, schemes_sourcefile)
+    ccpp_api.write_makefile("CAPS", cap_filenames, caps_makefile, caps_cmakefile,\
+                            caps_sourcefile)
+    ccpp_api.write_makefile("TYPEDEFS", host_mods, typedefs_makefile,            \
+                            typedefs_cmakefile, typedefs_sourcefile)
+    ccpp_api.write_makefile("API", static_api, static_api_makefile,              \
+                            static_api_cmakefile, static_api_sourcefile)
+    ccpp_api.write_makefile("KINDS", kinds_file, kinds_makefile, kinds_cmakefile,\
+                            kinds_sourcefile)
+
     return None
 
 ###############################################################################

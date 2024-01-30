@@ -21,7 +21,7 @@ from common import FORTRAN_CONDITIONAL_REGEX_WORDS, FORTRAN_CONDITIONAL_REGEX
 from common import CCPP_TYPE, STANDARD_VARIABLE_TYPES, STANDARD_CHARACTER_TYPE
 from common import CCPP_STATIC_API_MODULE, CCPP_STATIC_SUBROUTINE_NAME
 from metadata_parser import CCPP_MANDATORY_VARIABLES
-from mkcap import Var
+from metavar_prebuild import Var
 
 ###############################################################################
 
