@@ -61,10 +61,3 @@
 [ccpp-arg-table]
   name = ccpp_types
   type = module
-[ccpp_t]
-  standard_name = ccpp_t
-  long_name = definition of type ccpp_t
-  units = DDT
-  dimensions = ()
-  type = ccpp_t
-
