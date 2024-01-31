@@ -1146,7 +1146,7 @@ class Scheme(SuiteObject):
                                      context=self.__context)
         # end if
         scheme_mods = set()
-        scheme_mods.add((my_header.module, self.subroutine_name))
+        scheme_mods.add((self.name, self.subroutine_name))
         for var in my_header.variable_list():
             vstdname = var.get_prop_value('standard_name')
             def_val = var.get_prop_value('default_value')
@@ -2168,6 +2168,7 @@ class Group(SuiteObject):
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
         # Look for any DDT types
+        # DJS2024: Module name not being used.
         call_vars = self.call_list.variable_list()
         self._ddt_library.write_ddt_use_statements(call_vars, outfile,
                                                    indent+1, pad=modmax)
