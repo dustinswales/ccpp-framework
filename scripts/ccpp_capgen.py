@@ -513,9 +513,8 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        #DJS2023: This is not working for files that have decelarations AFTER the typedefs.
-        #check_fortran_against_metadata(mheaders, fheaders,
-        #                               filename, fort_file, logger)
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger)
         # Check for host dependencies (will raise error if reqired
         #                              dependency file not found)
         depends = find_dependency_files(filename, mtables)
@@ -570,6 +569,7 @@ def parse_scheme_files(scheme_filenames, run_env):
     fort_files = list()
     depend_files = list()
     table_names = list()
+    mod_alias = list()
     logger = run_env.logger
     for filename in scheme_filenames:
         logger.info('Reading CCPP schemes from {}'.format(filename))
@@ -615,6 +615,12 @@ def parse_scheme_files(scheme_filenames, run_env):
                 header_dict[header.title] = header #table.table_name
                 if header.header_type == 'ddt':
                     known_ddts.append(header.title)
+                    if (header.title != table.table_name):
+                        ldict = {}
+                        ldict['ddt'] = header.title
+                        ldict['mod'] = table.table_name 
+                        mod_alias.append(ldict)
+                    # end if
                 # end if
                 # Store fortran file
                 if fort_file:
@@ -629,7 +635,7 @@ def parse_scheme_files(scheme_filenames, run_env):
         # the file name (mheaders)
 
     # end for
-    return header_dict.values(), table_dict, fort_files, depend_files
+    return header_dict.values(), table_dict, fort_files, depend_files, mod_alias
 
 ###############################################################################
 def clean_capgen(cap_output_file, logger):
@@ -704,7 +710,7 @@ def capgen(run_env, return_db=False):
         ddts = host_model.ddt_lib.keys()
         if ddts:
             run_env.logger.debug("DDT definitions = {}".format(ddts))
-    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = parse_scheme_files(scheme_files, run_env)
+    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends, mod_alias = parse_scheme_files(scheme_files, run_env)
 
     plist = host_model.prop_list('local_name')
     if run_env.verbose:
@@ -731,7 +737,7 @@ def capgen(run_env, return_db=False):
         os.makedirs(outtemp_dir)
     # end if
     ccpp_api = API(sdfs, host_model, scheme_headers, run_env)
-    cap_filenames = ccpp_api.write(outtemp_dir, run_env)
+    cap_filenames = ccpp_api.write(outtemp_dir, mod_alias, run_env)
     if run_env.generate_host_cap:
         # Create a cap file
         cap_module = host_model.ccpp_cap_name()

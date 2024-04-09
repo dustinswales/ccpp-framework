@@ -292,7 +292,7 @@ class DDTLibrary(dict):
             # end if
         # end for
 
-    def ddt_modules(self, variable_list, ddt_mods=None):
+    def ddt_modules(self, variable_list, ddt_mods=None, mod_alias=None):
         """Collect information for module use statements.
         Add module use information (module name, DDT name) for any variable
         in <variable_list> which is a DDT in this library.
@@ -304,16 +304,23 @@ class DDTLibrary(dict):
             vtype = var.get_prop_value('type')
             if vtype in self:
                 module = self[vtype].module
+                if mod_alias:
+                    for alias in mod_alias:
+                        if alias["ddt"] == vtype:
+                            module = alias["mod"]
+                        # end if
+                    # end for
+                # end if
                 ddt_mods.add((module, vtype))
             # end if
         # end for
         return ddt_mods
 
-    def write_ddt_use_statements(self, variable_list, outfile, indent, pad=0):
+    def write_ddt_use_statements(self, variable_list, outfile, indent, pad=0, mod_alias=None):
         """Write the use statements for all ddt modules needed by
         <variable_list>"""
         pad = max(pad, self.__max_mod_name_len)
-        ddt_mods = self.ddt_modules(variable_list)
+        ddt_mods = self.ddt_modules(variable_list, mod_alias=mod_alias)
         for ddt_mod in ddt_mods:
             dmod = ddt_mod[0]
             dtype = ddt_mod[1]

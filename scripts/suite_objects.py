@@ -1596,8 +1596,10 @@ class Scheme(SuiteObject):
         for (dummy, var, rindices, lindices, compat_obj) in self.__reverse_transforms:
             tstmt = self.write_var_transform(var, dummy, rindices, lindices, compat_obj, outfile, indent, False)
         # Write the scheme call.
-        stmt = 'call {}({})'
-        outfile.write(stmt.format(self.subroutine_name, my_args), indent+1)
+        if not self._no_run_phase:
+            stmt = 'call {}({})'
+            outfile.write(stmt.format(self.subroutine_name, my_args), indent+1)
+        # end if
         # Write any forward (post-Scheme) transforms.
         for (var, dummy, lindices, rindices, compat_obj) in self.__forward_transforms:
             tstmt = self.write_var_transform(var, dummy, rindices, lindices, compat_obj, outfile, indent, True)
@@ -2111,7 +2113,7 @@ class Group(SuiteObject):
         # end if
         return fvar
 
-    def write(self, outfile, host_arglist, indent, const_mod,
+    def write(self, outfile, host_arglist, mod_alias, indent, const_mod,
               suite_vars=None, allocate=False, deallocate=False):
         """Write code for this subroutine (Group), including contents,
         to <outfile>"""
@@ -2148,6 +2150,7 @@ class Group(SuiteObject):
         # First, write out the subroutine header
         subname = self.name
         call_list = self.call_list.call_string()
+        print("SWALES call_list = ",call_list)
         outfile.write(Group.__subhead.format(subname=subname, args=call_list),
                       indent)
         # Write out any use statements
@@ -2157,6 +2160,7 @@ class Group(SuiteObject):
             modmax = 0
         # end if
         # Write out the scheme use statements
+        # DJS2024: Module name not being used
         scheme_use = 'use {},{} only: {}'
         for scheme in self._local_schemes:
             smod = scheme[0]
@@ -2168,16 +2172,15 @@ class Group(SuiteObject):
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
         # Look for any DDT types
-        # DJS2024: Module name not being used.
         call_vars = self.call_list.variable_list()
         self._ddt_library.write_ddt_use_statements(call_vars, outfile,
-                                                   indent+1, pad=modmax)
+                                                   indent+1, pad=modmax, mod_alias=mod_alias)
         decl_vars = [x[0] for x in subpart_vars.values()]
         self._ddt_library.write_ddt_use_statements(decl_vars, outfile,
-                                                   indent+1, pad=modmax)
+                                                   indent+1, pad=modmax, mod_alias=mod_alias)
         outfile.write('', 0)
+    
         # Write out dummy arguments
-        outfile.write('! Dummy arguments', indent+1)
         msg = 'Variables for {}: ({})'
         if (self.run_env.logger and
             self.run_env.logger.isEnabledFor(logging.DEBUG)):

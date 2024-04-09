@@ -491,7 +491,7 @@ character(len=16) :: {css_var_name} = '{state}'
         """Return the constituent dictionary for this suite"""
         return self.parent
 
-    def write(self, output_dir, run_env):
+    def write(self, output_dir, mod_alias, run_env):
         """Create caps for all groups in the suite and for the entire suite
         (calling the group caps one after another)"""
         # Set name of module and filename of cap
@@ -535,13 +535,13 @@ character(len=16) :: {css_var_name} = '{state}'
             outfile.end_module_header()
             for group in self.__groups:
                 if group.name in self._beg_groups:
-                    group.write(outfile, self.__host_arg_list_noloop,
+                    group.write(outfile, self.__host_arg_list_noloop, mod_alias,
                                 1, const_mod, suite_vars=self, allocate=True)
                 elif group.name in self._end_groups:
-                    group.write(outfile, self.__host_arg_list_noloop,
+                    group.write(outfile, self.__host_arg_list_noloop, mod_alias, 
                                 1, const_mod, suite_vars=self, deallocate=True)
                 else:
-                    group.write(outfile, self.__host_arg_list_full, 1,
+                    group.write(outfile, self.__host_arg_list_full, mod_alias, 1,
                                 const_mod)
                 # end if
             # end for
@@ -615,10 +615,10 @@ class API(VarDictionary):
                                     run_env, ddts=[d for d in scheme_headers
                                                    if d.header_type == 'ddt'])
         for header in [d for d in scheme_headers if d.header_type != 'ddt']:
-            if header.header_type != 'scheme':
-                errmsg = "{} is an unknown CCPP API metadata header type, {}"
-                raise CCPPError(errmsg.format(header.title, header.header_type))
-            # end if
+#            if header.header_type != 'scheme':
+#                errmsg = "{} is an unknown CCPP API metadata header type, {}"
+#                raise CCPPError(errmsg.format(header.title, header.header_type))
+#            # end if
             func_id, _, match_trans =                                         \
                 CCPP_STATE_MACH.function_match(header.title)
             if func_id not in scheme_library:
@@ -627,9 +627,9 @@ class API(VarDictionary):
             func_entry = scheme_library[func_id]
             if match_trans not in func_entry:
                 func_entry[match_trans] = header
-            else:
-                errmsg = "Duplicate scheme entry, {}"
-                raise CCPPError(errmsg.format(header.title))
+#            else:
+#                errmsg = "Duplicate scheme entry, {}"
+#                raise CCPPError(errmsg.format(header.title))
             # end if
         # end for
         # Turn the SDF files into Suites
@@ -685,7 +685,7 @@ class API(VarDictionary):
         # end if
         raise ParseInternalError("Illegal phase, '{}'".format(phase))
 
-    def write(self, output_dir, run_env):
+    def write(self, output_dir, mod_alias, run_env):
         """Write CCPP API module"""
         if not self.suites:
             raise CCPPError("No suite specified for generating API")
@@ -693,7 +693,7 @@ class API(VarDictionary):
         api_filenames = list()
         # Write out the suite files
         for suite in self.suites:
-            out_file_name = suite.write(output_dir, run_env)
+            out_file_name = suite.write(output_dir, mod_alias, run_env)
             api_filenames.append(out_file_name)
         # end for
         return api_filenames
