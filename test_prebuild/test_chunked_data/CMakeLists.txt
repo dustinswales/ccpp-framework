@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.10)
 
-project(ccpp_blocked_data
+project(ccpp_chunked_data
         VERSION 1.0.0
         LANGUAGES C Fortran)
 
@@ -63,8 +63,8 @@ endif(API)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O0 -fno-unsafe-math-optimizations -frounding-math -fsignaling-nans -ffpe-trap=invalid,zero,overflow -fbounds-check -ggdb -fbacktrace -ffree-line-length-none")
 
 #------------------------------------------------------------------------------
-add_library(ccpp_blocked_data STATIC ${SCHEMES} ${CAPS} ${API})
-target_link_libraries(ccpp_blocked_data PRIVATE MPI::MPI_Fortran)
+add_library(ccpp_chunked_data STATIC ${SCHEMES} ${CAPS} ${API})
+target_link_libraries(ccpp_chunked_data PRIVATE MPI::MPI_Fortran)
 # Generate list of Fortran modules from defined sources
 foreach(source_f90 ${CAPS} ${API})
     get_filename_component(tmp_source_f90 ${source_f90} NAME)
@@ -73,24 +73,24 @@ foreach(source_f90 ${CAPS} ${API})
     list(APPEND MODULES_F90 ${CMAKE_CURRENT_BINARY_DIR}/${module_f90})
 endforeach()
 
-set_target_properties(ccpp_blocked_data PROPERTIES VERSION ${PROJECT_VERSION}
+set_target_properties(ccpp_chunked_data PROPERTIES VERSION ${PROJECT_VERSION}
                       SOVERSION ${PROJECT_VERSION_MAJOR})
 
-add_executable(test_blocked_data.x main.F90)
-add_dependencies(test_blocked_data.x ccpp_blocked_data)
-target_link_libraries(test_blocked_data.x ccpp_blocked_data)
-set_target_properties(test_blocked_data.x PROPERTIES LINKER_LANGUAGE Fortran)
+add_executable(test_chunked_data.x main.F90)
+add_dependencies(test_chunked_data.x ccpp_chunked_data)
+target_link_libraries(test_chunked_data.x ccpp_chunked_data)
+set_target_properties(test_chunked_data.x PROPERTIES LINKER_LANGUAGE Fortran)
 
 # Define where to install the library
-install(TARGETS ccpp_blocked_data
-        EXPORT ccpp_blocked_data-targets
+install(TARGETS ccpp_chunked_data
+        EXPORT ccpp_chunked_data-targets
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION lib
 )
 # Export our configuration
-install(EXPORT ccpp_blocked_data-targets
-        FILE ccpp_blocked_data-config.cmake
+install(EXPORT ccpp_chunked_data-targets
+        FILE ccpp_chunked_data-config.cmake
         DESTINATION lib/cmake
 )
 # Define where to install the C headers and Fortran modules

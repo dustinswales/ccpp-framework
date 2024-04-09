@@ -654,7 +654,7 @@ def _new_var_entry(parent, var, full_entry=True):
                           "diagnostic_name", "diagnostic_name_fixed",
                           "kind", "persistence", "polymorphic", "protected",
                           "state_variable", "type", "units", "molar_mass",
-                          "advected", "top_at_one"])
+                          "advected", "top_at_one", "optional"])
         prop_list.extend(Var.constituent_property_names())
     # end if
     ventry = ET.SubElement(parent, "var")
@@ -705,7 +705,7 @@ def _new_scheme_entry(parent, scheme, group_name, scheme_headers):
             raise CCPPDatatableError(emsg.format(sch_name, pname))
         # end if
     # Special case: Scheme w/o run phase.
-    if scheme._no_run_phase:
+    if not scheme._has_run_phase:
         return
     else:
         phase_entry = ET.SubElement(sch_entry, sch_tag)

@@ -19,6 +19,8 @@
 !
 module ccpp_types
 
+    use mpi_f08, only: MPI_Comm
+
 !! \section arg_table_ccpp_types
 !! \htmlinclude ccpp_types.html
 !!
@@ -26,14 +28,20 @@ module ccpp_types
     implicit none
 
     private
-    public :: ccpp_t
+    public :: ccpp_t, one
+    public :: MPI_Comm
+
+    !> @var Definition of constant one
+    integer, parameter :: one = 1
 
     !> @var The default loop counter indicating outside of a subcycle loop
     integer, parameter :: CCPP_DEFAULT_LOOP_CNT = -999
     integer, parameter :: CCPP_DEFAULT_LOOP_MAX = -999
 
-    !> @var The default values for block and thread numbers indicating invalid data
-    integer, parameter :: CCPP_DEFAULT_BLOCK_AND_THREAD_NUMBER = -999
+    !> @var The default values for block, chunk and thread numbers indicating invalid data
+    integer, parameter :: CCPP_DEFAULT_BLOCK_NUMBER = -999
+    integer, parameter :: CCPP_DEFAULT_CHUNK_NUMBER = -999
+    integer, parameter :: CCPP_DEFAULT_THREAD_NUMBER = -999
 
 !! \section arg_table_ccpp_t
 !! \htmlinclude ccpp_t.html
@@ -53,8 +61,9 @@ module ccpp_types
        character(len=512)                                  :: errmsg = ''
        integer                                             :: loop_cnt = CCPP_DEFAULT_LOOP_CNT
        integer                                             :: loop_max = CCPP_DEFAULT_LOOP_MAX
-       integer                                             :: blk_no = CCPP_DEFAULT_BLOCK_AND_THREAD_NUMBER
-       integer                                             :: thrd_no = CCPP_DEFAULT_BLOCK_AND_THREAD_NUMBER
+       integer                                             :: blk_no = CCPP_DEFAULT_BLOCK_NUMBER
+       integer                                             :: chunk_no = CCPP_DEFAULT_CHUNK_NUMBER
+       integer                                             :: thrd_no = CCPP_DEFAULT_THREAD_NUMBER
        integer                                             :: ccpp_instance = 1
 
     contains
@@ -71,8 +80,9 @@ contains
        class(ccpp_t) :: ccpp_d
        logical :: initialized
        !
-       initialized = (ccpp_d%blk_no /= CCPP_DEFAULT_BLOCK_AND_THREAD_NUMBER .and. &
-                      ccpp_d%thrd_no /= CCPP_DEFAULT_BLOCK_AND_THREAD_NUMBER)
+       initialized = ccpp_d%thrd_no /= CCPP_DEFAULT_THREAD_NUMBER .or. &
+                     ccpp_d%blk_no /= CCPP_DEFAULT_BLOCK_NUMBER .or. &
+                     ccpp_d%chunk_no /= CCPP_DEFAULT_CHUNK_NUMBER
     end function ccpp_t_initialized
 
 end module ccpp_types

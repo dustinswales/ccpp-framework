@@ -23,11 +23,7 @@ from parse_tools import ParseInternalError, CCPPError
 from parse_tools import read_xml_file, validate_xml_file, find_schema_version
 from parse_tools import init_log, set_log_to_null
 from suite_objects import CallList, Group, Scheme
-from mkcap import CapsMakefile, CapsCMakefile, CapsSourcefile
-from mkcap import SchemesMakefile, SchemesCMakefile, SchemesSourcefile
-from mkcap import TypedefsMakefile, TypedefsCMakefile, TypedefsSourcefile
-from mkcap import APIMakefile, APICMakefile, APISourcefile
-from mkcap import KindsMakefile, KindsCMakefile, KindsSourcefile
+from metavar import CCPP_LOOP_VAR_STDNAMES
 
 # pylint: disable=too-many-lines
 
@@ -292,13 +288,16 @@ character(len=16) :: {css_var_name} = '{state}'
                                     loop_subst=loop_subst)
         if var is None:
             # No dice? Check for a group variable which can be promoted
-            if standard_name in self.__gvar_stdnames:
+            # Don't promote loop standard names
+            if (standard_name in self.__gvar_stdnames and standard_name
+                not in CCPP_LOOP_VAR_STDNAMES):
                 group = self.__gvar_stdnames[standard_name]
                 var = group.find_variable(standard_name=standard_name,
                                           source_var=source_var,
                                           any_scope=False,
                                           search_call_list=srch_clist,
                                           loop_subst=loop_subst)
+
                 if var is not None:
                     # Promote variable to suite level
                     # Remove this entry to avoid looping back here
