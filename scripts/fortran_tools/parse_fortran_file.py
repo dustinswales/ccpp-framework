@@ -916,12 +916,18 @@ def parse_module(pobj, statements, run_env):
     statements = read_statements(pobj, statements)
     inmodule = pobj.in_region('MODULE', region_name=mod_name)
     active_table = None
+    additional_subroutines = []
+    seen_contains = False
+    insub = False
     while inmodule and (statements is not None):
         while statements:
             statement = statements.pop(0)
             # End module
             pmatch = _ENDMODULE_RE.match(statement)
             asmatch = _ARG_TABLE_START_RE.match(statement)
+            smatch = _SUBROUTINE_RE.match(statement)
+            esmatch = _END_SUBROUTINE_RE.match(statement)
+            seen_contains = seen_contains or is_contains_statement(statement, insub)
             if asmatch is not None:
                 active_table = asmatch.group(1)
             elif pmatch is not None:
@@ -951,13 +957,22 @@ def parse_module(pobj, statements, run_env):
                 active_table = None
                 inmodule = pobj.in_region('MODULE', region_name=mod_name)
                 break
+            elif smatch is not None and not seen_contains:
+                routine_name = smatch.group(1).strip()
+                additional_subroutines.append(routine_name)
+                insub = True
+            elif esmatch is not None and not seen_contains:
+                insub = False
+            elif esmatch is not None:
+                seen_contains = False
             # End if
         # End while
         if inmodule and (statements is not None) and (len(statements) == 0):
             statements = read_statements(pobj)
         # End if
     # End while
-    return statements, mtables, mod_name
+
+    return statements, mtables, mod_name, additional_subroutines
 
 ########################################################################
 
@@ -982,14 +997,14 @@ def parse_fortran_file(filename, run_env):
         elif _MODULE_RE.match(statement) is not None:
             # push statement back so parse_module can use it
             statements.insert(0, statement)
-            statements, ptables, mod_name = parse_module(pobj, statements, run_env)
+            statements, ptables, mod_name, additional_routines = parse_module(pobj, statements, run_env)
             mtables.extend(ptables)
         # End if
         if (statements is not None) and (len(statements) == 0):
             statements = read_statements(pobj)
         # End if
     # End while
-    return mtables, mod_name
+    return mtables, mod_name, additional_routines
 
 ########################################################################
 

@@ -2383,7 +2383,7 @@ class Group(SuiteObject):
         # end if
         # Write out the scheme use statements
         scheme_use = 'use {},{} only: {}'
-        for scheme in self._local_schemes:
+        for scheme in sorted(self._local_schemes):
             smod = scheme[0]
             sname = scheme[1]
             # For schemes with "host variants" (e.g. GFS_time.HOST.F90)
@@ -2486,7 +2486,7 @@ class Group(SuiteObject):
         # Allocate local arrays
         outfile.write('\n! Allocate local arrays', indent+1)
         alloc_stmt = "allocate({}({}))"
-        for lname in allocatable_var_set:
+        for lname in sorted(allocatable_var_set):
             var = subpart_allocate_vars[lname][0]
             dims = var.get_dimensions()
             alloc_str = self.allocate_dim_str(dims, var.context)
@@ -2529,7 +2529,7 @@ class Group(SuiteObject):
         if allocatable_var_set:
             outfile.write('\n! Deallocate local arrays', indent+1)
         # end if
-        for lname in allocatable_var_set:
+        for lname in sorted(allocatable_var_set):
             outfile.write('if (allocated({})) {} deallocate({})'.format(lname,' '*(20-len(lname)),lname), indent+1)
         # end for
         for lname in optional_var_set:
