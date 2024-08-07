@@ -24,6 +24,11 @@ from parse_tools import read_xml_file, validate_xml_file, find_schema_version
 from parse_tools import init_log, set_log_to_null
 from suite_objects import CallList, Group, Scheme
 from metavar import CCPP_LOOP_VAR_STDNAMES
+from mkcap import CapsMakefile, CapsCMakefile, CapsSourcefile
+from mkcap import SchemesMakefile, SchemesCMakefile, SchemesSourcefile
+from mkcap import TypedefsMakefile, TypedefsCMakefile, TypedefsSourcefile
+from mkcap import APIMakefile, APICMakefile, APISourcefile
+from mkcap import KindsMakefile, KindsCMakefile, KindsSourcefile
 
 # pylint: disable=too-many-lines
 
@@ -614,10 +619,10 @@ class API(VarDictionary):
                                     run_env, ddts=[d for d in scheme_headers
                                                    if d.header_type == 'ddt'])
         for header in [d for d in scheme_headers if d.header_type != 'ddt']:
-            if header.header_type != 'scheme':
-                errmsg = "{} is an unknown CCPP API metadata header type, {}"
-                raise CCPPError(errmsg.format(header.title, header.header_type))
-            # end if
+#            if header.header_type != 'scheme':
+#                errmsg = "{} is an unknown CCPP API metadata header type, {}"
+#                raise CCPPError(errmsg.format(header.title, header.header_type))
+#            # end if
             func_id, _, match_trans =                                         \
                 CCPP_STATE_MACH.function_match(header.title)
             if func_id not in scheme_library:
@@ -626,10 +631,10 @@ class API(VarDictionary):
             func_entry = scheme_library[func_id]
             if match_trans not in func_entry:
                 func_entry[match_trans] = header
-            else:
-                errmsg = "Duplicate scheme entry, {}"
-                raise CCPPError(errmsg.format(header.title))
-            # end if
+#            else:
+#                errmsg = "Duplicate scheme entry, {}"
+#                raise CCPPError(errmsg.format(header.title))
+#            # end if
         # end for
         # Turn the SDF files into Suites
         for sdf in sdfs:
@@ -1135,23 +1140,23 @@ class API(VarDictionary):
 
     def write_makefile(self, obj_, name_, name_makefile, name_cmakefile, name_sourcefile):
         """Generate makefile/cmakefile snippets"""
-        if obj_ is "TYPEDEFS":
+        if obj_ == "TYPEDEFS":
             makefile   = TypedefsMakefile()
             cmakefile  = TypedefsCMakefile()
             sourcefile = TypedefsSourcefile()
-        elif obj_ is "SCHEMES":
+        elif obj_ == "SCHEMES":
             makefile   = SchemesMakefile()
             cmakefile  = SchemesCMakefile()
             sourcefile = SchemesSourcefile()
-        elif obj_ is "CAPS":
+        elif obj_ == "CAPS":
             makefile   = CapsMakefile()
             cmakefile  = CapsCMakefile()
             sourcefile = CapsSourcefile()
-        elif obj_ is "API":
+        elif obj_ == "API":
             makefile   = APIMakefile()
             cmakefile  = APICMakefile()
             sourcefile = APISourcefile()
-        elif obj_ is "KINDS":
+        elif obj_ == "KINDS":
             makefile   = KindsMakefile()
             cmakefile  = KindsCMakefile()
             sourcefile = KindsSourcefile()

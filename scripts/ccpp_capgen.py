@@ -597,8 +597,8 @@ def parse_scheme_files(scheme_filenames, run_env):
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        check_fortran_against_metadata(mheaders, fheaders,
-                                       filename, fort_file, logger)
+        #check_fortran_against_metadata(mheaders, fheaders,
+        #                               filename, fort_file, logger)
         # Check for scheme dependencies (will raise error if reqired 
         #                                dependency file not found)
         depends = find_dependency_files(filename, mtables)

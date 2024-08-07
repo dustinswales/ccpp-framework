@@ -13,7 +13,7 @@ from ccpp_state_machine import CCPP_STATE_MACH, RUN_PHASE_NAME
 from code_block import CodeBlock
 from constituents import ConstituentVarDict
 from framework_env import CCPPFrameworkEnv
-from metavar import Var, VarDictionary, VarLoopSubst
+from metavar import Var, VarDictionary, VarLoopSubst, write_ptr_def
 from metavar import CCPP_CONSTANT_VARS, CCPP_LOOP_VAR_STDNAMES
 from parse_tools import ParseContext, ParseSource, context_string
 from parse_tools import ParseInternalError, CCPPError
@@ -891,7 +891,7 @@ class SuiteObject(VarDictionary):
             if (not scheme_var_optional and host_var_active.lower() != '.true.'):
                 errmsg = "Non optional scheme arguments for conditionally allocatable variables"
                 sname  = dict_var.get_prop_value('standard_name')
-                errmsg += ", {}".format(sname)
+                errmsg += ", {}, in {}".format(sname,self.__name)
                 raise CCPPError(errmsg)
             # end if
             # Add the variable to the parent call tree
@@ -1239,11 +1239,18 @@ class Scheme(SuiteObject):
             # end if
 
             # Is this a conditionally allocated variable?
-            # If so, declare localpointer varaible. This is needed to
+            # If so, declare local pointer varaible. This is needed to
             # pass inactive (not present) status through the caps.
             if var.get_prop_value('optional'):
                 newvar_ptr = var.clone(var.get_prop_value('local_name')+'_ptr')
+                (conditional, vars_needed) = var.conditional(dict_var)
+                print("SWALES",conditional,vars_needed)
+                for var_needed in vars_needed:
+                    self.update_group_call_list_variable(var_needed)
+                    print("SWALES (1): Adding ",var_needed.get_prop_value("standard_name"),"to group call list")
+                # end for
                 self.__optional_vars.append([dict_var, var, newvar_ptr, has_transform])
+                
             # end if
 
         # end for
@@ -1256,7 +1263,7 @@ class Scheme(SuiteObject):
             # end if
         # end if
         return scheme_mods
-
+        
     def add_var_debug_check(self, var):
         """Add a debug check for a given variable var (host model variable,
         suite variable or group module variable) for this scheme.
@@ -1551,7 +1558,7 @@ class Scheme(SuiteObject):
     def associate_optional_var(self, dict_var, var, var_ptr, has_transform, cldicts, indent, outfile):
         """Write local pointer association for optional variables."""
         if (dict_var):
-            (conditional, _) = dict_var.conditional(cldicts)
+            (conditional, vars_needed) = dict_var.conditional(cldicts)
             if (has_transform):
                 lname = var.get_prop_value('local_name')+'_local'
             else:
@@ -1568,7 +1575,7 @@ class Scheme(SuiteObject):
         if (dict_var):
             intent = var.get_prop_value('intent')
             if (intent == 'out' or intent == 'inout'):
-                (conditional, _) = dict_var.conditional(cldicts)
+                (conditional, vars_needed) = dict_var.conditional(cldicts)
                 if (has_transform):
                     lname = var.get_prop_value('local_name')+'_local'
                 else:
@@ -2388,12 +2395,15 @@ class Group(SuiteObject):
         # Look for any DDT types
         # DJS2024: Module name not being used.
         call_vars = self.call_list.variable_list()
+        outfile.write('! SWALES IS HERE (1)', indent+1)
         self._ddt_library.write_ddt_use_statements(call_vars, outfile,
                                                    indent+1, pad=modmax)
         decl_vars = [x[0] for x in subpart_allocate_vars.values()]
+        outfile.write('! SWALES IS HERE (2)', indent+1)
         self._ddt_library.write_ddt_use_statements(decl_vars, outfile,
                                                    indent+1, pad=modmax)
         outfile.write('', 0)
+        
         # Write out dummy arguments
         outfile.write('! Dummy arguments', indent+1)
         msg = 'Variables for {}: ({})'
@@ -2434,7 +2444,7 @@ class Group(SuiteObject):
         # end for
         # Pointer variables
         for (name, kind, dim, vtype) in pointer_var_set:
-            var.write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
+            write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
         # end for
         outfile.write('', 0)
         # Get error variable names
