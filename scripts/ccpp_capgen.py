@@ -538,7 +538,7 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         # parse metadata file
         mtables,mtitles = parse_metadata_file(filename, known_ddts, run_env)
         fort_file = find_associated_fortran_file(filename)
-        ftables, mod_file = parse_fortran_file(fort_file, run_env)
+        ftables, mod_file, additional_routines = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
         for sect in [x.sections() for x in mtables]:
@@ -632,6 +632,13 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
 #                                       filename, fort_file, logger,
 #                                       dyn_routines=dyn_routines,
 #                                       fortran_routines=additional_routines)
+
+        # Check for scheme dependencies (will raise error if reqired 
+        #                                dependency file not found)
+        depends = find_dependency_files(filename, mtables)
+        for depend in depends:
+            if not (depend in depend_files):
+                depend_files.append(depend)
 
         # Check for duplicate tables, then add to dict
         for table in mtables:

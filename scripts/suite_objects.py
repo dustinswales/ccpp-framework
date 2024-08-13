@@ -1244,10 +1244,8 @@ class Scheme(SuiteObject):
             if var.get_prop_value('optional'):
                 newvar_ptr = var.clone(var.get_prop_value('local_name')+'_ptr')
                 (conditional, vars_needed) = var.conditional(dict_var)
-                print("SWALES",conditional,vars_needed)
                 for var_needed in vars_needed:
                     self.update_group_call_list_variable(var_needed)
-                    print("SWALES (1): Adding ",var_needed.get_prop_value("standard_name"),"to group call list")
                 # end for
                 self.__optional_vars.append([dict_var, var, newvar_ptr, has_transform])
                 
@@ -2395,11 +2393,9 @@ class Group(SuiteObject):
         # Look for any DDT types
         # DJS2024: Module name not being used.
         call_vars = self.call_list.variable_list()
-        outfile.write('! SWALES IS HERE (1)', indent+1)
         self._ddt_library.write_ddt_use_statements(call_vars, outfile,
                                                    indent+1, pad=modmax)
         decl_vars = [x[0] for x in subpart_allocate_vars.values()]
-        outfile.write('! SWALES IS HERE (2)', indent+1)
         self._ddt_library.write_ddt_use_statements(decl_vars, outfile,
                                                    indent+1, pad=modmax)
         outfile.write('', 0)
