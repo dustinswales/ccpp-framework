@@ -1017,14 +1017,33 @@ class Var:
                     conditional += item
                 except ValueError:
                     dvar = None
+                    # DJS2024: First, check if any schemes in the group have this
+                    # variable as an argument. If so, no need to add to list of 
+                    # varaibles needed, vars_needed.
                     for vdict in vdicts:
-                        dvar = vdict.find_variable(standard_name=item, any_scope=True) # or any_scope=False ?
+                        dvar = vdict.find_variable(standard_name=item, any_scope=False)
                         if dvar:
                             break
+                        # end if
+                    # end for
+                    # DJS2024: If varaible is not requested by a scheme in this group, but
+                    # is needed for optional variable quiering, add to list <vars_needed>
+                    # of varaibles needed, vars_needed.
+                    if not dvar:
+                        for vdict in vdicts:
+                            dvar = vdict.find_variable(standard_name=item, any_scope=True)
+                            if dvar:
+                                vars_needed.append(dvar)
+                                break
+                            # end if
+                        # end for
+                    # end if
+
                     if not dvar:
                         raise Exception(f"Cannot find variable '{item}' for generating conditional for '{active}'")
+                    # end if
                     conditional += dvar.get_prop_value('local_name')
-                    vars_needed.append(dvar)
+
         return (conditional, vars_needed)
 
     def write_def(self, outfile, indent, wdict, allocatable=False, target=False,
@@ -1682,6 +1701,7 @@ class VarDictionary(OrderedDict):
             if gen_unique:
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)
+                lname = new_lname
             elif not exists_ok:
                 errstr = 'Invalid local_name: {} already registered{}'
                 cstr = context_string(lvar.source.context, with_comma=True)
