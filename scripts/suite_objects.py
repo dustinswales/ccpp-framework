@@ -454,12 +454,10 @@ class SuiteObject(VarDictionary):
                 newvar = oldvar.clone(subst_dict, source_name=self.name,
                                       source_type=stype, context=self.context)
             # end if
-
             self.call_list.add_variable(newvar, self.run_env,
                                         exists_ok=exists_ok,
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
-
             # We need to make sure that this variable's dimensions are available
             # DJS2024: It is NOT a CCPP requirement that the dimensions of the arguments
             #          are passed into the schemes as arguments.
@@ -1116,7 +1114,6 @@ class Scheme(SuiteObject):
         self.__reverse_transforms = list()
         self._has_run_phase = True
         self.__optional_vars = list()
-
         super().__init__(name, context, parent, run_env, active_call_list=True)
 
     def update_group_call_list_variable(self, var):
@@ -1168,6 +1165,11 @@ class Scheme(SuiteObject):
         else:
             estr = 'No schemes found for {}'
             raise ParseInternalError(estr.format(self.name),
+                                     context=self.__context)
+        # end if
+        if my_header is None:
+            estr = 'No {} header found for scheme, {}'
+            raise ParseInternalError(estr.format(phase, self.name),
                                      context=self.__context)
         # end if
         if my_header.module is None:
@@ -1958,7 +1960,7 @@ class Subcycle(SuiteObject):
             lvar = parent.find_variable(standard_name=self._loop, any_scope=True)
             if lvar is None:
                 emsg = "Subcycle, {}, specifies {} iterations but {} not found"
-                raise CCPPError(emsg.format(name, self._loop, self._loop))
+                raise CCPPError(emsg.format(name, self.loop, self.loop))
             # end if
             parent.add_call_list_variable(lvar)
         # end try
@@ -2365,7 +2367,6 @@ class Group(SuiteObject):
                     # end if
                 # end if
             # end for
-        
             # All optional dummy variables within group need to have 
             # an associated pointer array declared. 
             for cvar in self.call_list.variable_list():
@@ -2392,7 +2393,6 @@ class Group(SuiteObject):
         # First, write out the subroutine header
         subname = self.name
         call_list = self.call_list.call_string()
-
         outfile.write(Group.__subhead.format(subname=subname, args=call_list),
                       indent)
         # Write out any use statements
@@ -2413,7 +2413,6 @@ class Group(SuiteObject):
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
         # Look for any DDT types
-        # DJS2024: Module name not being used.
         call_vars = self.call_list.variable_list()
         self._ddt_library.write_ddt_use_statements(call_vars, outfile,
                                                    indent+1, pad=modmax)
