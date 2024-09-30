@@ -7,12 +7,10 @@ import os.path
 import filecmp
 import importlib
 
-# CCPP framework (prebuild)imports
+# CCPP framework (prebuild) imports
 from mkcap import CapsMakefile, CapsCMakefile, CapsSourcefile
 from mkcap import SchemesMakefile, SchemesCMakefile, SchemesSourcefile
 from mkcap import TypedefsMakefile, TypedefsCMakefile, TypedefsSourcefile
-from mkcap import APIMakefile, APICMakefile, APISourcefile
-from mkcap import KindsMakefile, KindsCMakefile, KindsSourcefile
 
 ################################################################################
 #
@@ -154,3 +152,296 @@ def create_scm_build(run_env, scheme_ffiles, host_ffiles, scheme_depends,
                    ccpp_cfg['kinds_cmakefile'],      \
                    ccpp_cfg['kinds_sourcefile'])
 # end def
+
+################################################################################
+#
+################################################################################
+class APIMakefile(object):
+
+    header='''
+# The CCPP static API is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+API ='''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+    def write(self, api_names):
+        if (self.filename is not sys.stdout):
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+        contents = self.header
+        for api_name in api_names:
+            contents += ' \\\n\t   {0}'.format(api_name)
+        # end for
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class
+
+################################################################################
+#
+################################################################################
+class APICMakefile(object):
+
+    header='''
+# The CCPP static API is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+'''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+    def write(self, api_file):
+        if (self.filename is not sys.stdout):
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+        contents = self.header
+        contents += """set(API \"{filename}\")""".format(filename=api_file)
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    # end def
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class
+
+################################################################################
+#
+################################################################################
+class APISourcefile(object):
+
+    header='''
+# The CCPP static API is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+export API="'''
+    footer='''"
+'''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+    def write(self, api_names):
+        if (self.filename is not sys.stdout):
+            filepath = os.path.split(self.filename)[0]
+            if filepath and not os.path.isdir(filepath):
+                os.makedirs(filepath)
+            # end if
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+        contents = self.header
+        for api_name in api_names:
+            contents += '{0};'.format(api_name)
+        # end for
+        contents = contents.rstrip(';')
+        contents += self.footer
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    # end def
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class
+
+################################################################################
+#
+################################################################################
+class KindsMakefile(object):
+
+    header='''
+# The CCPP kinds file is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+KINDS ='''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+    def write(self, kinds):
+        if (self.filename is not sys.stdout):
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+        contents = self.header
+        for kind in kinds:
+            contents += ' \\\n\t   {0}'.format(kind)
+        # end for
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    # end def
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class
+
+################################################################################
+#
+################################################################################
+class KindsCMakefile(object):
+
+    header='''
+# All CCPP Kinds is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+set(KINDS
+'''
+    footer=''')
+'''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+    def write(self, kinds):
+        if (self.filename is not sys.stdout):
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+        contents = self.header
+        for kind in kinds:
+            contents += '      {0}\n'.format(kind)
+        # end for
+        contents += self.footer
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class
+
+################################################################################
+#
+################################################################################
+class KindsSourcefile(object):
+
+    header='''
+# The CCPP Kinds file is defined here.
+#
+# This file is auto-generated using ccpp_capgen.py
+# at compile time, do not edit manually.
+#
+export KINDS="'''
+    footer='''"
+'''
+
+    def __init__(self, **kwargs):
+        self._filename = 'sys.stdout'
+        for key, value in kwargs.items():
+            setattr(self, "_"+key, value)
+        # end for
+    # end def
+
+    def write(self, kinds):
+        if (self.filename is not sys.stdout):
+            filepath = os.path.split(self.filename)[0]
+            if filepath and not os.path.isdir(filepath):
+                os.makedirs(filepath)
+            # end if
+            f = open(self.filename, 'w')
+        else:
+            f = sys.stdout
+        # end if
+
+        contents = self.header
+        for kind in kinds:
+            contents += '{0};'.format(kind)
+        # end for
+        contents = contents.rstrip(';')
+        contents += self.footer
+        f.write(contents)
+
+        if (f is not sys.stdout):
+            f.close()
+        # end if
+    @property
+    def filename(self):
+        '''Get the filename of write the output to.'''
+        return self._filename
+    # end def
+    @filename.setter
+    def filename(self, value):
+        self._filename = value
+    # end def
+# end class

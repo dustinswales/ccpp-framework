@@ -744,7 +744,6 @@ def capgen(run_env, return_db=False):
     # end if
     # First up, handle the host files
     host_model, host_ffiles, host_mods, host_depends = parse_host_model_files(host_files, host_name, run_env)
-    # end if
     # We always need to parse the ccpp_constituent_prop_ptr_t DDT
     const_prop_mod = os.path.join(src_dir, "ccpp_constituent_prop_mod.meta")
     if const_prop_mod not in scheme_files:
@@ -768,7 +767,8 @@ def capgen(run_env, return_db=False):
         ddts = host_model.ddt_lib.keys()
         if ddts:
             run_env.logger.debug("DDT definitions = {}".format(ddts))
-
+        # end if
+    # end if
     plist = host_model.prop_list('local_name')
     if run_env.verbose:
         run_env.logger.debug("{} variables = {}".format(host_model.name, plist))

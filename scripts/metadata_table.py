@@ -755,8 +755,6 @@ class MetadataSection(ParseSource):
             if known_ddts is None:
                 known_ddts = []
             # end if
-            # DJS2024: Add MPI_Comm as known ddt.
-            known_ddts.append("MPI_Comm")
             self.__start_context = ParseContext(context=self.__pobj)
             self.__init_from_file(table_name, table_type, known_ddts, run_env,
                                   skip_ddt_check=skip_ddt_check)
