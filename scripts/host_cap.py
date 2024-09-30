@@ -545,7 +545,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
         cap.end_module_header()
         for stage in CCPP_STATE_MACH.transitions():
             # Create a dict of local variables for stage
-            host_local_vars = VarDictionary(f"{host_model.name}_ccpp_physics_{stage}",
+            host_local_vars = VarDictionary(f"{host_model.name}_{stage}",
                                             run_env)
             # Create part call lists
             # Look for any loop-variable mismatch
@@ -670,7 +670,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
         # Write the API inspection routines (e.g., list of suites)
         api.write_inspection_routines(cap)
         # Write the constituent initialization interfaces
-        err_vars = host_model.find_error_variables(any_scope=True,clone_as_out=True)
+        err_vars = host_model.find_error_variables()
         const_obj_name = constituent_model_object_name(host_model)
         cap.write("", 0)
         const_names_name = constituent_model_const_stdnames(host_model)

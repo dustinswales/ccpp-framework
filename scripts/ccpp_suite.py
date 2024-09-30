@@ -7,7 +7,6 @@ to implement calls to a set of suites for a given host model."""
 # Python library imports
 import os.path
 import logging
-import filecmp
 import xml.etree.ElementTree as ET
 # CCPP framework imports
 from ccpp_state_machine import CCPP_STATE_MACH, RUN_PHASE_NAME

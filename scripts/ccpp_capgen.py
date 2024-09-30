@@ -312,16 +312,6 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
             # end if
         # end for
         list_match = mlen == flen
-        # Since we can have any subset of the optional variables, we can't 
-        # enforce ordering for these variables declared at the end of the list
-        # Find length of required variables and use to limit ordering check below.
-        nrarg=mlen
-        for find, fvar in enumerate(flist):
-            if fvar.get_prop_value('optional'):
-                nrarg=find
-                break
-            # end if
-        # end for
         # Check for optional Fortran variables that are not in metadata
         if flen > mlen:
             for find, fvar in enumerate(flist):
@@ -401,7 +391,7 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
             # end if
             # Check order dependence
             if fht in _ORDERED_TABLE_TYPES:
-                if find != mind and mind <= nrarg:
+                if find != mind:
                     errmsg = 'Out of order argument, {} in {}'
                     errors_found = add_error(errors_found,
                                              errmsg.format(lname, title))
@@ -585,6 +575,8 @@ def parse_host_model_files(host_filenames, host_name, run_env):
                     if not (fort_file in fort_files):
                         fort_files.append(fort_file)
                         mod_files.append(mod_file+'.mod')
+                    # end if
+                # end if
             # end if
         # end for
     # end for
@@ -641,7 +633,8 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
         for depend in depends:
             if not (depend in depend_files):
                 depend_files.append(depend)
-
+            # end if
+        # end for
         # Check for duplicate tables, then add to dict
         for table in mtables:
             if table.table_name in table_dict:
@@ -670,12 +663,7 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
                 # end if
             # end if
         # end for
-
-        # Need to check for cases when the module name (mtables) is different than
-        # the file name (mheaders)
-
     # end for
-
     # Check for duplicate dynamic constituent routine names
     dyn_val_dict = {}
     for table in table_dict:
