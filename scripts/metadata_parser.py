@@ -10,7 +10,7 @@ from xml.etree import ElementTree as ET
 
 from common import encode_container, CCPP_STAGES
 from common import CCPP_ERROR_CODE_VARIABLE, CCPP_ERROR_MSG_VARIABLE
-from metavar_prebuild import Var
+from mkcap import Var
 
 sys.path.append(os.path.join(os.path.split(__file__)[0], 'fortran_tools'))
 from parse_fortran import FtypeTypeDecl
@@ -70,7 +70,7 @@ NEW_METADATA_SAVE = {}
 
 def merge_dictionaries(x, y):
     """Merges two metadata dictionaries. For each list of elements
-    (variables = class Var in metavar_prebuild.py) in one dictionary, we know
+    (variables = class Var in mkcap.py) in one dictionary, we know
     that all entries are compatible. If one or more elements exist
     in both x and y, we therefore have to test compatibility of
     one of the items in each dictionary only."""
@@ -255,7 +255,7 @@ def parse_variable_tables(filepath, filename):
     datatype, which itself is defined inside a module (depending on the location of the
     metadata table). Each variable (standard_name) can exist only once, i.e. each entry
     (list of variables) in the metadata dictionary contains only one element
-    (variable = instance of class Var defined in metavar_prebuild.py)"""
+    (variable = instance of class Var defined in mkcap.py)"""
     # Set debug to true if logging level is debug
     debug = logging.getLogger().getEffectiveLevel() == logging.DEBUG
 
@@ -517,7 +517,7 @@ def parse_scheme_tables(filepath, filename):
     'subroutine_name' of scheme 'scheme_name' inside a module 'module_name'. Each variable
     (standard_name) can exist only once, i.e. each entry (list of variables) in the metadata
     dictionary  contains only one element (variable = instance of class Var defined in
-    metavar_prebuild.py). The metadata dictionaries of the individual schemes are merged afterwards
+    mkcap.py). The metadata dictionaries of the individual schemes are merged afterwards
     (called from ccpp_prebuild.py) using merge_metadata_dicts, where multiple instances
     of variables are compared for compatibility and collected in a list (entry in the
     merged metadata dictionary). The merged metadata dictionary of all schemes (which
