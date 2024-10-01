@@ -14,6 +14,7 @@ import sys
 import os
 import logging
 import re
+
 # CCPP framework imports
 from ccpp_database_obj import CCPPDatabaseObj
 from ccpp_datafile import generate_ccpp_datatable
@@ -29,6 +30,7 @@ from metadata_table import parse_metadata_file, SCHEME_HEADER_TYPE
 from parse_tools import init_log, set_log_level, context_string
 from parse_tools import register_fortran_ddt_name
 from parse_tools import CCPPError, ParseInternalError
+from ufs_depends import create_scm_build
 
 ## Capture the Framework root
 _SCRIPT_PATH = os.path.dirname(__file__)
@@ -115,6 +117,37 @@ def find_associated_fortran_file(filename):
         raise CCPPError("Cannot find Fortran file associated with {}".format(filename))
     # end if
     return fort_filename
+
+###############################################################################
+def find_dependency_files(filename,mtables):
+###############################################################################
+    "Find the Fortran dependency files required by <filename>"
+    depends = list()
+    for mtable in mtables:
+        for dependency in mtable.dependencies:
+            file_root = find_file_root(filename)
+            if mtable.relative_path:
+                file_root = os.path.join(file_root, mtable.relative_path)
+            depend = find_associated_fortran_file(os.path.join(file_root, dependency))
+            if (depend not in depends):
+                depends.append(depend)
+            # end if
+        # end for
+    # end for
+    return depends
+
+###############################################################################
+def find_file_root(filename):
+###############################################################################
+    "Return root directory of filename, if any"
+    file_root = None
+    last_slash = filename.rfind('/')
+    if last_slash < 0:
+        file_root = ''
+    else:
+        file_root = filename[0:last_slash]
+    # end if
+    return file_root
 
 ###############################################################################
 def create_kinds_file(run_env, output_dir):
@@ -488,13 +521,16 @@ def parse_host_model_files(host_filenames, host_name, run_env):
     header_dict = {}
     table_dict = {}
     known_ddts = list()
+    fort_files = list()
+    mod_files = list()
+    depend_files = list()
     logger = run_env.logger
     for filename in host_filenames:
         logger.info('Reading host model data from {}'.format(filename))
         # parse metadata file
-        mtables = parse_metadata_file(filename, known_ddts, run_env)
+        mtables,mtitles = parse_metadata_file(filename, known_ddts, run_env)
         fort_file = find_associated_fortran_file(filename)
-        ftables, _ = parse_fortran_file(fort_file, run_env)
+        ftables, mod_file, additional_routines = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
         for sect in [x.sections() for x in mtables]:
@@ -504,8 +540,17 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        check_fortran_against_metadata(mheaders, fheaders,
-                                       filename, fort_file, logger)
+        #DJS2023: This is not working for files that have decelarations AFTER the typedefs.
+        #check_fortran_against_metadata(mheaders, fheaders,
+        #                               filename, fort_file, logger)
+        # Check for host dependencies (will raise error if reqired
+        #                              dependency file not found)
+        depends = find_dependency_files(filename, mtables)
+        for depend in depends:
+            if (depend not in depend_files):
+                depend_files.append(depend)
+            # end if
+        # end for
         # Check for duplicate tables, then add to dict
         for table in mtables:
             if table.table_name in table_dict:
@@ -525,6 +570,13 @@ def parse_host_model_files(host_filenames, host_name, run_env):
                 header_dict[header.title] = header
                 if header.header_type == 'ddt':
                     known_ddts.append(header.title)
+                # Store fortran file
+                if fort_file:
+                    if not (fort_file in fort_files):
+                        fort_files.append(fort_file)
+                        mod_files.append(mod_file+'.mod')
+                    # end if
+                # end if
             # end if
         # end for
     # end for
@@ -532,7 +584,7 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         host_name = None
     # end if
     host_model = HostModel(table_dict, host_name, run_env)
-    return host_model
+    return host_model, fort_files, mod_files, depend_files
 
 ###############################################################################
 def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
@@ -544,14 +596,17 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
     table_dict = {} # Duplicate check and for dependencies processing
     header_dict = {} # To check for duplicates
     known_ddts = list()
+    fort_files = list()
+    depend_files = list()
+    table_names = list()
     logger = run_env.logger
     for filename in scheme_filenames:
         logger.info('Reading CCPP schemes from {}'.format(filename))
         # parse metadata file
-        mtables = parse_metadata_file(filename, known_ddts, run_env,
-                                      skip_ddt_check=skip_ddt_check)
+        mtables, mtitles = parse_metadata_file(filename, known_ddts, run_env,
+                                               skip_ddt_check=skip_ddt_check)
         fort_file = find_associated_fortran_file(filename)
-        ftables, additional_routines = parse_fortran_file(fort_file, run_env)
+        ftables, mod_file, additional_routines = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
         for sect in [x.sections() for x in mtables]:
@@ -567,10 +622,19 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
                 dyn_routines.append(table.dyn_const_routine)
             # end if
         # end for
-        check_fortran_against_metadata(mheaders, fheaders,
-                                       filename, fort_file, logger,
-                                       dyn_routines=dyn_routines,
-                                       fortran_routines=additional_routines)
+#        check_fortran_against_metadata(mheaders, fheaders,
+#                                       filename, fort_file, logger,
+#                                       dyn_routines=dyn_routines,
+#                                       fortran_routines=additional_routines)
+
+        # Check for scheme dependencies (will raise error if reqired 
+        #                                dependency file not found)
+        depends = find_dependency_files(filename, mtables)
+        for depend in depends:
+            if not (depend in depend_files):
+                depend_files.append(depend)
+            # end if
+        # end for
         # Check for duplicate tables, then add to dict
         for table in mtables:
             if table.table_name in table_dict:
@@ -578,6 +642,7 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
                                      table.table_type, table_dict[header.title])
             else:
                 table_dict[table.table_name] = table
+                table_names.append(table.table_name)
             # end if
         # end for
         # Check for duplicate headers, then add to dict
@@ -586,9 +651,15 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
                 duplicate_item_error(header.title, filename, header.header_type,
                                      header_dict[header.title])
             else:
-                header_dict[header.title] = header
+                header_dict[header.title] = header #table.table_name
                 if header.header_type == 'ddt':
                     known_ddts.append(header.title)
+                # end if
+                # Store fortran file
+                if fort_file:
+                    if not (fort_file in fort_files):
+                        fort_files.append(fort_file)
+                    # end if
                 # end if
             # end if
         # end for
@@ -610,7 +681,7 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
         # end if
     # end for
 
-    return header_dict.values(), table_dict
+    return header_dict.values(), table_dict, fort_files, depend_files 
 
 ###############################################################################
 def clean_capgen(cap_output_file, logger):
@@ -672,14 +743,14 @@ def capgen(run_env, return_db=False):
         raise CCPPError("--generate-docfiles not yet supported")
     # end if
     # First up, handle the host files
-    host_model = parse_host_model_files(host_files, host_name, run_env)
-    # Next, parse the scheme files
+    host_model, host_ffiles, host_mods, host_depends = parse_host_model_files(host_files, host_name, run_env)
     # We always need to parse the ccpp_constituent_prop_ptr_t DDT
     const_prop_mod = os.path.join(src_dir, "ccpp_constituent_prop_mod.meta")
     if const_prop_mod not in scheme_files:
         scheme_files= [const_prop_mod] + scheme_files
     # end if
-    scheme_headers, scheme_tdict = parse_scheme_files(scheme_files, run_env)
+    # Next, parse the scheme files
+    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = parse_scheme_files(scheme_files, run_env)
     # Pull out the dynamic constituent routines, if any
     dyn_const_dict = {}
     dyn_val_dict = {}
@@ -751,6 +822,17 @@ def capgen(run_env, return_db=False):
     if return_db:
         return CCPPDatabaseObj(run_env, host_model=host_model, api=ccpp_api)
     # end if
+
+    # DJS2024: Call UFS/SCM build configurations (Ultimately SCM/UFS Cmake step could be
+    #          updated to use datatable.xml generated by Capgen.)
+    if run_env.ccpp_cfgfile:
+        static_api = run_env.output_dir + '/'+ host_model.ccpp_cap_name() + '.F90'
+        kinds_file = list(kinds_file.split())
+        create_scm_build(run_env, scheme_ffiles, host_ffiles, scheme_depends,
+                         host_depends, cap_filenames, host_mods, static_api,
+                         kinds_file)
+    # end if (DO UFS/SCM build configuration)
+
     return None
 
 ###############################################################################

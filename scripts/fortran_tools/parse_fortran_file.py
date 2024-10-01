@@ -959,7 +959,8 @@ def parse_module(pobj, statements, run_env):
             statements = read_statements(pobj)
         # End if
     # End while
-    return statements, mtables, additional_subroutines
+
+    return statements, mtables, mod_name, additional_subroutines
 
 ########################################################################
 
@@ -984,14 +985,14 @@ def parse_fortran_file(filename, run_env):
         elif _MODULE_RE.match(statement) is not None:
             # push statement back so parse_module can use it
             statements.insert(0, statement)
-            statements, ptables, additional_routines = parse_module(pobj, statements, run_env)
+            statements, ptables, mod_name, additional_routines = parse_module(pobj, statements, run_env)
             mtables.extend(ptables)
         # End if
         if (statements is not None) and (len(statements) == 0):
             statements = read_statements(pobj)
         # End if
     # End while
-    return mtables, additional_routines
+    return mtables, mod_name, additional_routines
 
 ########################################################################
 

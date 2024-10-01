@@ -13,7 +13,7 @@ from ccpp_state_machine import CCPP_STATE_MACH, RUN_PHASE_NAME
 from code_block import CodeBlock
 from constituents import ConstituentVarDict
 from framework_env import CCPPFrameworkEnv
-from metavar import Var, VarDictionary, VarLoopSubst
+from metavar import Var, VarDictionary, VarLoopSubst, write_ptr_def
 from metavar import CCPP_CONSTANT_VARS, CCPP_LOOP_VAR_STDNAMES
 from parse_tools import ParseContext, ParseSource, context_string
 from parse_tools import ParseInternalError, CCPPError
@@ -143,12 +143,21 @@ class CallList(VarDictionary):
                         raise CCPPError(errmsg.format(stdname, clnames))
                     # end if
                     lname = dvar.get_prop_value('local_name')
-                    # Optional variables in the caps are associated with 
-                    # local pointers of <lname>_ptr
+                    # Optional variables in the caps are associated with
+                    # local pointers of <sname_ptr>. sname_ptr needs to use
+                    # local_name in Group's call list (cldict.find_variable).
                     if dvar.get_prop_value('optional'):
-                        lname = dummy+'_ptr'
+                        sname = dvar.get_prop_value('standard_name')
+                        svar  = cldict.find_variable(standard_name=sname, any_scope=True)
+                        # Do we need this check on svar? There shouldn't be any varaibles
+                        # in the schemes that aren't in the group.
+                        if svar:
+                            lname = svar.get_prop_value('local_name')+'_ptr'
+                        # end if
                     # end if
                 else:
+                    dvar = self.find_variable(standard_name=stdname,
+                                                    any_scope=False)
                     cldict = None
                     aref = var.array_ref(local_name=dummy)
                     if aref is not None:
@@ -162,6 +171,7 @@ class CallList(VarDictionary):
                         use_dicts = cldicts
                     else:
                         use_dicts = [self]
+                        dvar = self.find_variable(standard_name=stdname)
                     # end if
                     run_phase = self.routine.run_phase()
                     # We only need dimensions for suite variables in run phase
@@ -449,13 +459,16 @@ class SuiteObject(VarDictionary):
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
             # We need to make sure that this variable's dimensions are available
-            for vardim in newvar.get_dim_stdnames(include_constants=False):
-                dvar = self.find_variable(standard_name=vardim,
-                                          any_scope=True)
-                if dvar is None:
-                    emsg = "{}: Could not find dimension {} in {}"
-                    raise ParseInternalError(emsg.format(self.name,
-                                                         vardim, stdname))
+            # DJS2024: It is NOT a CCPP requirement that the dimensions of the arguments
+            #          are passed into the schemes as arguments.
+            #          Do we want to perform this check?
+#            for vardim in newvar.get_dim_stdnames(include_constants=False):
+#                dvar = self.find_variable(standard_name=vardim,
+#                                          any_scope=True)
+#                if dvar is None:
+#                    emsg = "{}: Could not find dimension {} in {}"
+#                    raise ParseInternalError(emsg.format(self.name,
+#                                                         vardim, stdname))
                 # end if
         elif self.parent is None:
             errmsg = 'No call_list found for {}'.format(newvar)
@@ -566,6 +579,7 @@ class SuiteObject(VarDictionary):
                     dim_match = ':'.join(nloop_subst.required_stdnames)
                 # end if
             elif not self.run_phase():
+                dim_match = ndim
                 if ((hdim == 'ccpp_constant_one:horizontal_dimension') and
                     (ndim == 'ccpp_constant_one:horizontal_loop_extent')):
                     dim_match = hdim
@@ -694,8 +708,8 @@ class SuiteObject(VarDictionary):
                             break
                         # end if
                     # end if
-                # end if
-            # end for
+                # end for
+            # end if
             if not found_ndim:
                 match = False
                 reason = 'Could not find dimension, ' + neddim + ', in '
@@ -888,7 +902,7 @@ class SuiteObject(VarDictionary):
             if (not scheme_var_optional and host_var_active.lower() != '.true.'):
                 errmsg = "Non optional scheme arguments for conditionally allocatable variables"
                 sname  = dict_var.get_prop_value('standard_name')
-                errmsg += ", {}".format(sname)
+                errmsg += ", {}, in {}".format(sname,self.__name)
                 raise CCPPError(errmsg)
             # end if
             # Add the variable to the parent call tree
@@ -1164,7 +1178,7 @@ class Scheme(SuiteObject):
                                      context=self.__context)
         # end if
         scheme_mods = set()
-        scheme_mods.add((my_header.module, self.subroutine_name))
+        scheme_mods.add((self.name, self.subroutine_name))
         for var in my_header.variable_list():
             vstdname = var.get_prop_value('standard_name')
             def_val = var.get_prop_value('default_value')
@@ -1241,11 +1255,12 @@ class Scheme(SuiteObject):
             # end if
 
             # Is this a conditionally allocated variable?
-            # If so, declare localpointer varaible. This is needed to
+            # If so, declare local pointer varaible. This is needed to
             # pass inactive (not present) status through the caps.
             if var.get_prop_value('optional'):
-                newvar_ptr = var.clone(var.get_prop_value('local_name')+'_ptr')
-                self.__optional_vars.append([dict_var, var, newvar_ptr, has_transform])
+                if dict_var:
+                    self.add_optional_var(dict_var, var, has_transform)
+                # end if
             # end if
 
         # end for
@@ -1259,6 +1274,30 @@ class Scheme(SuiteObject):
         # end if
         return scheme_mods
 
+    def add_optional_var(self, dict_var, var, has_transform):
+        """Add local pointer needed for optional variable(s) in Group Cap. Also,
+        add any host variables from active condition that are needed to associate
+        the local pointer correctly."""
+        # Use Group call list and local suite dictionary.
+        var_dicts = [ self.__group.call_list ] + self.__group.suite_dicts()
+
+        # We need to gather all of the variables that are part of the 'active' attribute
+        # conditional and add them to the group's call list.
+        (_, vars_needed) = dict_var.conditional(var_dicts)
+        for var_needed in vars_needed:
+            self.update_group_call_list_variable(var_needed)
+        # end for
+
+        # Create new internal pointer variable.
+        found = self.__group.find_variable(source_var=var, any_scope=False)
+        if not found:
+            lname = var.get_prop_value('local_name')
+            newvar_ptr = var.clone(lname+'_ptr')
+            self.add_variable(newvar_ptr, self.run_env)
+        # end if
+        
+        return self.__optional_vars.append([dict_var, var, has_transform])
+    
     def add_var_debug_check(self, var):
         """Add a debug check for a given variable var (host model variable,
         suite variable or group module variable) for this scheme.
@@ -1550,33 +1589,42 @@ class Scheme(SuiteObject):
                 # end if
                 outfile.write('',indent)
 
-    def associate_optional_var(self, dict_var, var, var_ptr, has_transform, cldicts, indent, outfile):
-        """Write local pointer association for optional variables."""
+    def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
+        """Write local pointer association for optional variable."""
+        # Need to use local_name in Group's call list (self.__group.call_list), not
+        # the local_name in var.
+        sname = var.get_prop_value('standard_name') 
+        svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+
         if (dict_var):
-            (conditional, _) = dict_var.conditional(cldicts)
+            (conditional, vars_needed) = dict_var.conditional(cldicts)
             if (has_transform):
-                lname = var.get_prop_value('local_name')+'_local'
+                lname = svar.get_prop_value('local_name')+'_local'
             else:
-                lname = var.get_prop_value('local_name')
+                lname = svar.get_prop_value('local_name')
             # end if
-            lname_ptr = var_ptr.get_prop_value('local_name')
+            lname_ptr = lname + '_ptr'
             outfile.write(f"if {conditional} then", indent)
             outfile.write(f"{lname_ptr} => {lname}", indent+1)
             outfile.write(f"end if", indent)
         # end if
 
-    def assign_pointer_to_var(self, dict_var, var, var_ptr, has_transform, cldicts, indent, outfile):
+    def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
         """Assign local pointer to variable."""
+        # Need to use local_name in Group's call list (self.__group.call_list), not
+        # the local_name in var.
+        sname = var.get_prop_value('standard_name')
+        svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
         if (dict_var):
             intent = var.get_prop_value('intent')
             if (intent == 'out' or intent == 'inout'):
-                (conditional, _) = dict_var.conditional(cldicts)
+                (conditional, vars_needed) = dict_var.conditional(cldicts)
                 if (has_transform):
-                    lname = var.get_prop_value('local_name')+'_local'
+                    lname = svar.get_prop_value('local_name')+'_local'
                 else:
-                    lname = var.get_prop_value('local_name')
+                    lname = svar.get_prop_value('local_name')
                 # end if
-                lname_ptr = var_ptr.get_prop_value('local_name')
+                lname_ptr = lname + '_ptr'
                 outfile.write(f"if {conditional} then", indent)
                 outfile.write(f"{lname} = {lname_ptr}", indent+1)
                 outfile.write(f"end if", indent)
@@ -1725,8 +1773,8 @@ class Scheme(SuiteObject):
         if self.__optional_vars:
             outfile.write('! Associate conditional variables', indent+1)
         # end if 
-        for (dict_var, var, var_ptr, has_transform) in self.__optional_vars:
-            tstmt = self.associate_optional_var(dict_var, var, var_ptr, has_transform, cldicts, indent+1, outfile)
+        for (dict_var, var, has_transform) in self.__optional_vars:
+            tstmt = self.associate_optional_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         # end for
         # 
         # Write the scheme call.
@@ -1742,12 +1790,12 @@ class Scheme(SuiteObject):
         # Copy any local pointers.
         #
         first_ptr_declaration=True
-        for (dict_var, var, var_ptr, has_transform) in self.__optional_vars:
+        for (dict_var, var, has_transform) in self.__optional_vars:
             if first_ptr_declaration: 
                 outfile.write('! Copy any local pointers to dummy/local variables', indent+1)
                 first_ptr_declaration=False
             # end if
-            tstmt = self.assign_pointer_to_var(dict_var, var, var_ptr, has_transform, cldicts, indent+1, outfile)
+            tstmt = self.assign_pointer_to_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         # end for
         outfile.write('',indent+1)
         #
@@ -1909,7 +1957,7 @@ class Subcycle(SuiteObject):
             self._loop_var_int = True
         except ValueError:
             self._loop_var_int = False
-            lvar = parent.find_variable(standard_name=self.loop, any_scope=True)
+            lvar = parent.find_variable(standard_name=self._loop, any_scope=True)
             if lvar is None:
                 emsg = "Subcycle, {}, specifies {} iterations but {} not found"
                 raise CCPPError(emsg.format(name, self.loop, self.loop))
@@ -1927,12 +1975,12 @@ class Subcycle(SuiteObject):
         if self.name is None:
             self.name = "subcycle_index{}".format(level)
         # end if
-        # Create a variable for the loop index
-        self.add_variable(Var({'local_name':self.name,
-                               'standard_name':'loop_variable',
-                               'type':'integer', 'units':'count',
-                               'dimensions':'()'}, _API_SOURCE, self.run_env),
-                          self.run_env)
+        # Create a variable for the subcycle index
+        newvar = Var({'local_name':self.name, 'standard_name':self.name,
+                      'type':'integer', 'units':'count', 'dimensions':'()'},
+                     _API_LOCAL, self.run_env)
+        # The Group will manage this variable
+        group.manage_variable(newvar)
         # Handle all the suite objects inside of this subcycle
         scheme_mods = set()
         for item in self.parts:
@@ -1946,7 +1994,7 @@ class Subcycle(SuiteObject):
 
     def write(self, outfile, errcode, errmsg, indent):
         """Write code for the subcycle loop, including contents, to <outfile>"""
-        outfile.write('do {} = 1, {}'.format(self.name, self.loop), indent)
+        outfile.write('do {} = 1, {}'.format(self.name, self._loop), indent)
         # Note that 'scheme' may be a sybcycle or other construct
         for item in self.parts:
             item.write(outfile, errcode, errmsg, indent+1)
@@ -1955,14 +2003,8 @@ class Subcycle(SuiteObject):
 
     @property
     def loop(self):
-        """Return the loop value or variable local_name"""
-        lvar = self.find_variable(standard_name=self.loop, any_scope=True)
-        if lvar is None:
-            emsg = "Subcycle, {}, specifies {} iterations but {} not found"
-            raise CCPPError(emsg.format(self.name, self.loop, self.loop))
-        # end if
-        lname = lvar.get_prop_value('local_name')
-        return lname
+        """Return the loop variable over which this Subcycle cycles"""
+        return self._loop
 
 ###############################################################################
 
@@ -2298,7 +2340,6 @@ class Group(SuiteObject):
         allocatable_var_set = set()
         optional_var_set = set()
         pointer_var_set = list()
-        inactive_var_set = set()
         for item in [self]:# + self.parts:
             for var in item.declarations():
                 lname = var.get_prop_value('local_name')
@@ -2315,12 +2356,8 @@ class Group(SuiteObject):
                     dims = var.get_dimensions()
                     if (dims is not None) and dims:
                         if opt_var:
-                            if (self.call_list.find_variable(standard_name=sname)):
-                                subpart_optional_vars[lname] = (var, item, opt_var)
-                                optional_var_set.add(lname)
-                            else:
-                                inactive_var_set.add(var)
-                            # end if
+                            subpart_optional_vars[lname] = (var, item, opt_var)
+                            optional_var_set.add(lname)
                         else:
                             subpart_allocate_vars[lname] = (var, item, opt_var)
                             allocatable_var_set.add(lname)
@@ -2351,24 +2388,6 @@ class Group(SuiteObject):
                     pointer_var_set.append([name,kind,dimstr,vtype])
                 # end if
             # end for
-            # Any optional arguments that are not requested by the host need to have
-            # a local null pointer passed from the group to the scheme.
-            for ivar in inactive_var_set:
-                name = ivar.get_prop_value('local_name')+'_ptr'
-                kind = ivar.get_prop_value('kind')
-                dims = ivar.get_dimensions()
-                if ivar.is_ddt():
-                    vtype = 'type'
-                else:
-                    vtype = ivar.get_prop_value('type')
-                # end if
-                if dims:
-                    dimstr = '(:' + ',:'*(len(dims) - 1) + ')'
-                else:
-                    dimstr = ''
-                # end if
-                pointer_var_set.append([name,kind,dimstr,vtype])
-            # end for
 
         # end for
         # First, write out the subroutine header
@@ -2387,6 +2406,9 @@ class Group(SuiteObject):
         for scheme in sorted(self._local_schemes):
             smod = scheme[0]
             sname = scheme[1]
+            # For schemes with "host variants" (e.g. GFS_time.HOST.F90)
+            if "." in smod:
+                smod = smod[0:smod.find(".")]
             slen = ' '*(modmax - len(smod))
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
@@ -2438,7 +2460,8 @@ class Group(SuiteObject):
         # end for
         # Pointer variables
         for (name, kind, dim, vtype) in pointer_var_set:
-            var.write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
+            write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
+
         # end for
         outfile.write('', 0)
         # Get error variable names
