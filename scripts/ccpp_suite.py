@@ -751,7 +751,7 @@ class API(VarDictionary):
             ofile.write("allocate({}({}))".format(varlist_name, len(var_list)),
                         indent)
         # end if
-        for ind, var in enumerate(sorted(var_list)):
+        for ind, var in enumerate(var_list):
             if start_var:
                 ind_str = "{} + {}".format(start_var, ind + start_index)
             else:
@@ -1016,7 +1016,7 @@ class API(VarDictionary):
             # end if
             leaf_start += len(leaf_list)
             elem_start += len(leaf_list)
-            leaf_list = input_vars[1].difference(leaf_written_set)
+            leaf_list = sorted(input_vars[1].difference(leaf_written_set))
             leaf_written_set.union(input_vars[1])
             if elem_list or leaf_list:
                 ofile.write("if (struct_elements_use) then", 4)
@@ -1052,7 +1052,7 @@ class API(VarDictionary):
                                    start_index=leaf_start)
             leaf_start += len(leaf_list)
             elem_start = leaf_start
-            leaf_list = output_vars[1].difference(leaf_written_set)
+            leaf_list = sorted(output_vars[1].difference(leaf_written_set))
             leaf_written_set.union(output_vars[1])
             if elem_list or leaf_list:
                 ofile.write("if (struct_elements_use) then", 4)
@@ -1132,7 +1132,7 @@ class API(VarDictionary):
                 schemes.update([x.name for x in part.schemes()])
             # end for
             # Write out the list
-            API.write_var_set_loop(ofile, 'scheme_list', schemes, 3)
+            API.write_var_set_loop(ofile, 'scheme_list', sorted(schemes), 3)
             else_str = 'else '
         # end for
         ofile.write("else", 2)
