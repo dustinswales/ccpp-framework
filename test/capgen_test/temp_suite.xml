@@ -8,5 +8,6 @@
   <group name="physics2">
     <scheme>temp_calc_adjust</scheme>
     <scheme>temp_adjust</scheme>
+    <scheme>sfc_diff</scheme>
   </group>
 </suite>

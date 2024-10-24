@@ -69,7 +69,7 @@ _CCPP_FILES = _UTILITY_FILES + \
                os.path.join(_BUILD_DIR, "ccpp", "ccpp_temp_suite_cap.F90")]
 _PROCESS_LIST = ["setter=temp_set", "adjusting=temp_calc_adjust"]
 _MODULE_LIST = ["environ_conditions", "make_ddt", "setup_coeffs", "temp_adjust",
-                "temp_calc_adjust", "temp_set"]
+                "temp_calc_adjust", "temp_set", "sfc_diff"]
 _SUITE_LIST = ["ddt_suite", "temp_suite"]
 _INPUT_VARS_DDT = ["model_times", "number_of_model_times",
                    "horizontal_loop_begin", "horizontal_loop_end",
