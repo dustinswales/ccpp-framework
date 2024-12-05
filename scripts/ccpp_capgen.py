@@ -606,12 +606,6 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
             fheaders.extend(sect)
         # end for
 
-        dyn_routines = []
-        for table in mtables:
-            if table.dyn_const_routine:
-                dyn_routines.append(table.dyn_const_routine)
-            # end if
-        # end for
 #        check_fortran_against_metadata(mheaders, fheaders,
 #                                       filename, fort_file, logger,
 #                                       fortran_routines=additional_routines)

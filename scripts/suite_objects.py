@@ -471,6 +471,9 @@ class SuiteObject(VarDictionary):
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
             # We need to make sure that this variable's dimensions are available
+            # DJS2024 Asks: Isn't this on;y true for DEBUG mode, where the dimensions
+            # are needed for array size checks? Otherwise, there is no CCPP requirement
+            # stating that the dimensions are scheme arguments?
             for vardim in newvar.get_dim_stdnames(include_constants=False):
                 # Unnamed dimensions are ok for allocatable variables
                 if vardim == '' and newvar.get_prop_value('allocatable'):
@@ -482,9 +485,11 @@ class SuiteObject(VarDictionary):
                 dvar = self.find_variable(standard_name=vardim,
                                           any_scope=True)
                 if dvar is None:
-                    emsg = "{}: Could not find dimension {} in {}"
-                    raise ParseInternalError(emsg.format(self.name,
-                                                         vardim, stdname))
+                    if self.run_env.debug:
+                        emsg = "{}: Could not find dimension {} in {}"
+                        raise ParseInternalError(emsg.format(self.name,
+                                                             vardim, stdname))
+                    # end if
                 # end if
         elif self.parent is None:
             errmsg = 'No call_list found for {}'.format(newvar)
