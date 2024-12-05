@@ -894,17 +894,6 @@ class SuiteObject(VarDictionary):
             # Create compatability object, containing any necessary forward/reverse 
             # transforms from <var> and <dict_var>
             compat_obj = var.compatible(dict_var, run_env)
-            # If variable is defined as "inactive" by the host, ensure that
-            # this variable is declared as "optional" by the scheme. If
-            # not satisfied, return error.
-            host_var_active     = dict_var.get_prop_value('active')
-            scheme_var_optional = var.get_prop_value('optional')
-            if (not scheme_var_optional and host_var_active.lower() != '.true.'):
-                errmsg = "Non optional scheme arguments for conditionally allocatable variables"
-                sname  = dict_var.get_prop_value('standard_name')
-                errmsg += ", {}, in {}".format(sname,self.__name)
-                raise CCPPError(errmsg)
-            # end if
             # Add the variable to the parent call tree
             if dict_dims == new_dict_dims:
                 sdict = {}
@@ -1369,12 +1358,22 @@ class Scheme(SuiteObject):
                     (ldim, udim) = dim.split(":")
                     ldim_var = self.find_variable(standard_name=ldim)
                     if not ldim_var:
-                        raise Exception(f"No dimension with standard name '{ldim}'")
-                    self.update_group_call_list_variable(ldim_var)
+                        if not ldim.isnumeric():
+                            raise Exception(f"No dimension with standard name '{ldim}'")
+                        # end if
+                    # end if
+                    if ldim_var:
+                        self.update_group_call_list_variable(ldim_var)
+                    # end if
                     udim_var = self.find_variable(standard_name=udim)
                     if not udim_var:
-                        raise Exception(f"No dimension with standard name '{udim}'")
-                    self.update_group_call_list_variable(udim_var)
+                        if not udim.isnumeric():
+                            raise Exception(f"No dimension with standard name '{udim}'")
+                        # end if
+                    # endif
+                    if udim_var:
+                        self.update_group_call_list_variable(udim_var)
+                    # end if
 
         # Add the variable to the list of variables to check. Record which internal_var to use.
         self.__var_debug_checks.append([var, internal_var])
