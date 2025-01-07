@@ -528,8 +528,24 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
         # End if
         if stdname not in CCPP_CONSTANT_VARS:
             lname = var_dict.var_call_string(hvar, loop_vars=loop_vars)
-            hmvars.append("{}={}".format(sp_lname, lname))
-        # End if
+            # DJS2025: Check to see if call_string for <hvar> contains an
+            # array reference to a standard_name.
+            # If so, replace standard_name with the call_string for <hvar[standard_name]>.
+            dimdA = lname.find('(')
+            dimdB = lname.find(')%')
+            if (dimdA > 0 and dimdB > 0):
+                sname_sub = lname[dimdA+1:dimdB]
+                hvar_sub  = vdict.find_variable(standard_name=sname_sub, any_scope=True)
+                if (hvar_sub):
+                    lnameA = lname[0:dimdA+1]
+                    lnameB = lname[dimdB::]
+                    lname2 = lnameA + var_dict.var_call_string(hvar_sub, loop_vars=loop_vars) + lnameB
+                    hmvars.append("{}={}".format(sp_lname, lname2))
+                # end if
+            else:
+                hmvars.append("{}={}".format(sp_lname, lname))
+            # end if
+        # end if
     # End for
     return ', '.join(hmvars)
 

@@ -1321,12 +1321,19 @@ class Scheme(SuiteObject):
             self.update_group_call_list_variable(var_needed)
         # end for
 
-        # Create new internal pointer variable.
+        # Create new internal pointer variable, if not already created
+        # previously. If necessary, the same local pointer is recylced
+        # throughout the Group cap.
         found = self.__group.find_variable(source_var=var, any_scope=False)
         if not found:
             lname = var.get_prop_value('local_name')
-            newvar_ptr = var.clone(lname+'_ptr')
-            self.add_variable(newvar_ptr, self.run_env)
+            sname = var.get_prop_value('standard_name')
+            found = self.__group.find_variable(standard_name=sname)
+            if not found:
+                lname_ptr  = lname + '_ptr'
+                newvar_ptr = var.clone(lname_ptr)
+                self.add_variable(newvar_ptr, self.run_env)
+            # end if
         # end if
         
         return self.__optional_vars.append([dict_var, var, has_transform])
