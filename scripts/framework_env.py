@@ -199,7 +199,7 @@ class CCPPFrameworkEnv:
             self.__datatable_file = os.path.join(self.output_dir,
                                                  self.datatable_file)
         # end if
-        # Are we provided a (soon to be deprecated) CCPP configuration file?
+        # Are we provided a CCPP configuration file?
         if ndict and ('ccpp_cfgfile' in ndict):
             self.__ccpp_cfgfile = ndict['ccpp_cfgfile']
             del ndict['ccpp_cfgfile']

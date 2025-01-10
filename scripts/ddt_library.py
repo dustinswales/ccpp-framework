@@ -255,6 +255,7 @@ class DDTLibrary(dict):
                            ddt=None, skip_duplicates=False, parent=None):
         """Add all the reachable fields from DDT variable <var> of type,
            <ddt> to <var_dict>. Each field is added as a VarDDT.
+           If <parent>, add VarDDT recursively using parent.
            Note: By default, it is an error to try to add a duplicate
                  field to <var_dict> (i.e., the field already exists in
                  <var_dict> or one of its parents). To simply skip duplicate

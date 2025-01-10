@@ -657,10 +657,11 @@ class API(VarDictionary):
         self.__ddt_lib = DDTLibrary('{}_api'.format(self.host_model.name),
                                     run_env, ddts=all_ddts)
         for header in [d for d in scheme_headers if d.header_type != 'ddt']:
-#            if header.header_type != 'scheme':
-#                errmsg = "{} is an unknown CCPP API metadata header type, {}"
-#                raise CCPPError(errmsg.format(header.title, header.header_type))
-#            # end if
+            # DJS2024: Schemes and modules with DDTs?
+            if header.header_type != 'scheme' and header.header_type != 'module':
+                errmsg = "{} is an unknown CCPP API metadata header type, {}"
+                raise CCPPError(errmsg.format(header.title, header.header_type))
+            # end if
             func_id, _, match_trans =                                         \
                 CCPP_STATE_MACH.function_match(header.title)
             if func_id not in scheme_library:
@@ -669,10 +670,11 @@ class API(VarDictionary):
             func_entry = scheme_library[func_id]
             if match_trans not in func_entry:
                 func_entry[match_trans] = header
-#            else:
-#                errmsg = "Duplicate scheme entry, {}"
-#                raise CCPPError(errmsg.format(header.title))
-#            # end if
+            # DJS2024: Schemes and modules with DDTs?
+            elif header.header_type != 'module':
+                errmsg = "Duplicate scheme entry, {} {}"
+                raise CCPPError(errmsg.format(header.title,header.header_type))
+            # end if
         # end for
         # Turn the SDF files into Suites
         for sdf in sdfs:
@@ -1041,7 +1043,7 @@ class API(VarDictionary):
             # end if
             leaf_start += len(leaf_list)
             elem_start += len(leaf_list)
-            leaf_list = sorted(input_vars[1].difference(leaf_written_set))
+            leaf_list = input_vars[1].difference(leaf_written_set)
             leaf_written_set.union(input_vars[1])
             if elem_list or leaf_list:
                 ofile.write("if (struct_elements_use) then", 4)
@@ -1077,7 +1079,7 @@ class API(VarDictionary):
                                    start_index=leaf_start)
             leaf_start += len(leaf_list)
             elem_start = leaf_start
-            leaf_list = sorted(output_vars[1].difference(leaf_written_set))
+            leaf_list = output_vars[1].difference(leaf_written_set)
             leaf_written_set.union(output_vars[1])
             if elem_list or leaf_list:
                 ofile.write("if (struct_elements_use) then", 4)

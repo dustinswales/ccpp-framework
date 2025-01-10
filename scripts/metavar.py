@@ -1132,7 +1132,6 @@ class Var:
         else:
             comma = ' '
         # end if
-        cstr = "! {sname}"
         if self.get_prop_value('target'):
             targ = ", target"
         else:
@@ -1703,6 +1702,10 @@ class VarDictionary(OrderedDict):
             if gen_unique:
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)
+                # DJS2024: Local_name needs to be the local_name for the new
+                # internal variable, otherwise multiple instances of the same
+                # local_name in the Group cap will all be overwritten with the
+                # same local_name
                 lname = new_lname
             elif not exists_ok:
                 errstr = 'Invalid local_name: {} already registered{}'

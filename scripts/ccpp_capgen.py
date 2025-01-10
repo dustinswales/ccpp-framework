@@ -14,7 +14,6 @@ import sys
 import os
 import logging
 import re
-
 # CCPP framework imports
 from ccpp_database_obj import CCPPDatabaseObj
 from ccpp_datafile import generate_ccpp_datatable
@@ -529,7 +528,7 @@ def parse_host_model_files(host_filenames, host_name, run_env):
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        #DJS2023: This is not working for files that have decelarations AFTER the typedefs.
+        # DJS2024: This is not working?
         #check_fortran_against_metadata(mheaders, fheaders,
         #                               filename, fort_file, logger)
         # Check for host dependencies (will raise error if reqired
@@ -771,9 +770,9 @@ def capgen(run_env, return_db=False):
     # end if
     # Finally, create the database of generated files and caps
     # This can be directly in output_dir because it will not affect dependencies
-    generate_ccpp_datatable(run_env, host_model, ccpp_api,
-                            scheme_headers, scheme_tdict, host_files,
-                            cap_filenames, kinds_file, src_dir)
+#    generate_ccpp_datatable(run_env, host_model, ccpp_api,
+#                            scheme_headers, scheme_tdict, host_files,
+#                            cap_filenames, kinds_file, src_dir)
     if return_db:
         return CCPPDatabaseObj(run_env, host_model=host_model, api=ccpp_api)
     # end if
@@ -786,6 +785,10 @@ def capgen(run_env, return_db=False):
         create_scm_build(run_env, scheme_ffiles, host_ffiles, scheme_depends,
                          host_depends, cap_filenames, host_mods, static_api,
                          kinds_file)
+    else:
+        generate_ccpp_datatable(run_env, host_model, ccpp_api,
+                                scheme_headers, scheme_tdict, host_files,
+                                cap_filenames, kinds_file, src_dir)
     # end if (DO UFS/SCM build configuration)
 
     return None

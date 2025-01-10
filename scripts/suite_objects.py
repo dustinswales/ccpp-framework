@@ -1209,7 +1209,7 @@ class Scheme(SuiteObject):
                                      context=self.__context)
         # end if
         scheme_mods = set()
-        scheme_mods.add((self.name, self.subroutine_name))
+        scheme_mods.add((my_header.module, self.subroutine_name))
         for var in my_header.variable_list():
             vstdname = var.get_prop_value('standard_name')
             def_val = var.get_prop_value('default_value')
@@ -1407,6 +1407,7 @@ class Scheme(SuiteObject):
                     (ldim, udim) = dim.split(":")
                     ldim_var = self.find_variable(standard_name=ldim)
                     if not ldim_var:
+                        # DJS2025: To allow for numerical dimensions in metadata.
                         if not ldim.isnumeric():
                             raise Exception(f"No dimension with standard name '{ldim}'")
                         # end if
@@ -1416,6 +1417,7 @@ class Scheme(SuiteObject):
                     # end if
                     udim_var = self.find_variable(standard_name=udim)
                     if not udim_var:
+                        # DJS2025: To allow for numerical dimensions in metadata.
                         if not udim.isnumeric():
                             raise Exception(f"No dimension with standard name '{udim}'")
                         # end if
@@ -1659,7 +1661,7 @@ class Scheme(SuiteObject):
         # end if
 
     def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
-        """Assign local pointer to variable."""
+        """Write local pointer assignment to variable."""
         # Need to use local_name in Group's call list (self.__group.call_list), not
         # the local_name in var.
         sname = var.get_prop_value('standard_name')
@@ -2064,11 +2066,10 @@ class Subcycle(SuiteObject):
         if self.name is None:
             self.name = "subcycle_index{}".format(level)
         # end if
-        # Create a variable for the subcycle index
+        # Create a Group variable for the subcycle index.
         newvar = Var({'local_name':self.name, 'standard_name':self.name,
                       'type':'integer', 'units':'count', 'dimensions':'()'},
                      _API_LOCAL, self.run_env)
-        # The Group will manage this variable
         group.manage_variable(newvar)
         # Handle all the suite objects inside of this subcycle
         scheme_mods = set()
@@ -2092,8 +2093,14 @@ class Subcycle(SuiteObject):
 
     @property
     def loop(self):
-        """Return the loop variable over which this Subcycle cycles"""
-        return self._loop
+        """Return the loop value or variable local_name"""
+        lvar = self.find_variable(standard_name=self.loop, any_scope=True)
+        if lvar is None:
+            emsg = "Subcycle, {}, specifies {} iterations but {} not found"
+            raise CCPPError(emsg.format(self.name, self.loop, self.loop))
+        # end if
+        lname = lvar.get_prop_value('local_name')
+        return lname
 
 ###############################################################################
 
