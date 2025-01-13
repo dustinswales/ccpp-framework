@@ -13,7 +13,8 @@ from ccpp_state_machine import CCPP_STATE_MACH, RUN_PHASE_NAME
 from code_block import CodeBlock
 from constituents import ConstituentVarDict
 from framework_env import CCPPFrameworkEnv
-from metavar import Var, VarDictionary, VarLoopSubst, write_ptr_def
+from metavar import Var, VarDictionary, VarLoopSubst
+from metavar import write_ptr_def, write_ptr_type_def
 from metavar import CCPP_CONSTANT_VARS, CCPP_LOOP_VAR_STDNAMES
 from parse_tools import ParseContext, ParseSource, context_string
 from parse_tools import ParseInternalError, CCPPError
@@ -150,8 +151,12 @@ class CallList(VarDictionary):
                         svar  = cldict.find_variable(standard_name=sname, any_scope=True)
                         # Do we need this check on svar? There shouldn't be any varaibles
                         # in the schemes that aren't in the group.
-                        if svar:
-                            lname = svar.get_prop_value('local_name')+'_ptr'
+                        var_thrd = cldict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                        if var_thrd:
+                            lname = svar.get_prop_value('local_name')+'_ptr'+'('+var_thrd.get_prop_value('local_name')+')'+'%p'
+                        else:
+                            lname = svar.get_prop_value('local_name')+'_ptr(1)%p'
+                        # end if
                         # end if
                     # end if
                 else:
@@ -1294,6 +1299,16 @@ class Scheme(SuiteObject):
                 # end if
             # end if
 
+            # Add threading variables to Group call lists.
+            var_thrd = self.find_variable(standard_name='ccpp_thread_count',any_scope=True)
+            if var_thrd:
+                self.update_group_call_list_variable(var_thrd)
+            # end if
+            var_thrd = self.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+            if var_thrd:
+                self.update_group_call_list_variable(var_thrd)
+            # end if
+
         # end for
         if self.needs_vertical is not None:
             self.parent.add_part(self, replace=True) # Should add a vloop
@@ -1647,6 +1662,7 @@ class Scheme(SuiteObject):
         sname = var.get_prop_value('standard_name') 
         svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
 
+        thrd_num =  self.__group.call_list.find_variable(standard_name='ccpp_thread_number', any_scope=False)
         if (dict_var):
             (conditional, vars_needed) = dict_var.conditional(cldicts)
             if (has_transform):
@@ -1655,10 +1671,40 @@ class Scheme(SuiteObject):
                 lname = svar.get_prop_value('local_name')
             # end if
             lname_ptr = lname + '_ptr'
+            dims = '1'
+            if (thrd_num):
+                dims = thrd_num.get_prop_value('local_name')
+            # end if
             outfile.write(f"if {conditional} then", indent)
-            outfile.write(f"{lname_ptr} => {lname}", indent+1)
+            outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent+1)
             outfile.write(f"end if", indent)
         # end if
+
+    def nullify_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
+        """Write local pointer nullification for optional variable."""
+
+        # Need to use local_name in Group's call list (self.__group.call_list), not
+        # the local_name in var.
+        sname = var.get_prop_value('standard_name')
+        svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+
+        thrd_num =  self.__group.call_list.find_variable(standard_name='ccpp_thread_number', any_scope=False)
+        if (dict_var):
+            (conditional, vars_needed) = dict_var.conditional(cldicts)
+            if (has_transform):
+                lname = svar.get_prop_value('local_name')+'_local'
+            else:
+                lname = svar.get_prop_value('local_name')
+            # end if
+
+            lname_ptr = lname + '_ptr'
+            dims = '1'
+            if (thrd_num):
+                dims = thrd_num.get_prop_value('local_name')
+            # end if
+            outfile.write(f"if {conditional} then", indent)
+            outfile.write(f"nullify({lname_ptr}({dims})%p)", indent+1)
+            outfile.write(f"end if", indent)
 
     def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
         """Write local pointer assignment to variable."""
@@ -1672,13 +1718,11 @@ class Scheme(SuiteObject):
                 (conditional, vars_needed) = dict_var.conditional(cldicts)
                 if (has_transform):
                     lname = svar.get_prop_value('local_name')+'_local'
-                else:
-                    lname = svar.get_prop_value('local_name')
+                    lname_ptr = lname + '_ptr'
+                    outfile.write(f"if {conditional} then", indent)
+                    outfile.write(f"{lname} = {lname_ptr}", indent+1)
+                    outfile.write(f"end if", indent)
                 # end if
-                lname_ptr = lname + '_ptr'
-                outfile.write(f"if {conditional} then", indent)
-                outfile.write(f"{lname} = {lname_ptr}", indent+1)
-                outfile.write(f"end if", indent)
             # end if
         # end if
 
@@ -1882,6 +1926,14 @@ class Scheme(SuiteObject):
             tstmt = self.assign_pointer_to_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         # end for
         outfile.write('',indent+1)
+        #
+        # Nullify any local pointers.
+        #
+        if self.__optional_vars:
+            outfile.write('! Nullify conditional variables', indent+1)
+        # end if
+        for (dict_var, var, has_transform) in self.__optional_vars:
+            tstmt = self.nullify_optional_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         #
         # Write any forward (post-Scheme) transforms.
         #
@@ -2437,6 +2489,8 @@ class Group(SuiteObject):
         allocatable_var_set = set()
         optional_var_set = set()
         pointer_var_set = list()
+        pointer_type_set = list()
+        pointer_type_names = list()
         for item in [self]:# + self.parts:
             for var in item.declarations():
                 lname = var.get_prop_value('local_name')
@@ -2482,7 +2536,21 @@ class Group(SuiteObject):
                     else:
                         dimstr = ''
                     # end if
-                    pointer_var_set.append([name,kind,dimstr,vtype])
+                    # Declare local DDT with same type/rank as optional variable.
+                    if vtype == 'character' and 'len=' in kind:
+                        pointer_type_name = f"{vtype}_{kind.replace('=','')}_r{len(dims)}_ptr_arr_type"
+                    elif kind:
+                        pointer_type_name = f"{vtype}_{kind}_rank{len(dims)}_ptr_arr_type"
+                    else:
+                        pointer_type_name = f"{vtype}_default_kind_rank{len(dims)}_ptr_arr_type"
+                    # end if
+                    if not pointer_type_name in pointer_type_names:
+                        pointer_type_names.append(pointer_type_name)
+                        pointer_type_set.append([pointer_type_name,cvar])
+                    # end if
+                    var_thrd_count = self.find_variable(standard_name='ccpp_thread_count',any_scope=True)
+                    var_thrd_num   = self.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                    pointer_var_set.append([name, cvar, pointer_type_name, var_thrd_count, var_thrd_num])
                 # end if
             # end for
         # end for
@@ -2515,6 +2583,14 @@ class Group(SuiteObject):
         decl_vars = [x[0] for x in subpart_allocate_vars.values()]
         self._ddt_library.write_ddt_use_statements(decl_vars, outfile,
                                                    indent+1, pad=modmax)
+        outfile.write('', 0)
+        # Pointer type declarations.
+        if pointer_type_set:
+            outfile.write('! Local type defintions', indent+1)
+        # end if
+        for (pointer_type_name, var) in pointer_type_set:
+            write_ptr_type_def(outfile, var, pointer_type_name, indent+1)
+        # end for
         outfile.write('', 0)
         # Write out dummy arguments
         outfile.write('! Dummy arguments', indent+1)
@@ -2554,10 +2630,12 @@ class Group(SuiteObject):
                           allocatable=(key in optional_var_set),
                           target=target)
         # end for
-        # Pointer variables
-        for (name, kind, dim, vtype) in pointer_var_set:
-            write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
-
+        # Pointer variables.
+        outfile.write('', 0)
+        if pointer_var_set:
+            outfile.write('! Local pointer variables', indent+1)
+        for (pointer_var_name, var, pointer_type_name, dvar, __) in pointer_var_set:
+            write_ptr_def(outfile, var, pointer_var_name, pointer_type_name, dvar, indent+1)
         # end for
         outfile.write('', 0)
         # Get error variable names
@@ -2649,14 +2727,6 @@ class Group(SuiteObject):
         for lname in optional_var_set:
             outfile.write('if (allocated({})) {} deallocate({})'.format(lname,' '*(20-len(lname)),lname), indent+1)
         # end for
-        # Nullify local pointers
-        if pointer_var_set:
-            outfile.write('\n! Nullify local pointers', indent+1)
-        # end if
-        for (name, kind, dim, vtype) in pointer_var_set:
-            #cspace = ' '*(15-len(name))
-            outfile.write('if (associated({})) {} nullify({})'.format(name,' '*(15-len(name)),name), indent+1)
-        # end fo
         # Deallocate suite vars
         if deallocate:
             for svar in suite_vars.variable_list():

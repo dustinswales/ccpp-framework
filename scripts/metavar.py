@@ -1160,21 +1160,6 @@ class Var:
                                   name=name, dims=dimstr, cspace=cspace,
                                   sname=stdname), indent)
 
-    def write_ptr_def(self, outfile, indent, name, kind, dimstr, vtype, extra_space=0):
-        """Write the definition line for local null pointer declaration to <outfile>."""
-        comma = ', '
-        if kind:
-            dstr = "{type}({kind}){cspace}pointer          :: {name}{dims}{cspace2} => null()"
-            cspace = comma + ' '*(extra_space + 20 - len(vtype) - len(kind))
-            cspace2 = ' '*(20 -len(name) - len(dimstr))
-        else:
-            dstr = "{type}{cspace}pointer          :: {name}{dims}{cspace2} => null()"
-            cspace = comma + ' '*(extra_space + 22 - len(vtype))
-            cspace2 = ' '*(20 -len(name) - len(dimstr))
-        # end if
-        outfile.write(dstr.format(type=vtype, kind=kind, name=name, dims=dimstr,
-                                  cspace=cspace, cspace2=cspace2), indent)
-
     def is_ddt(self):
         """Return True iff <self> is a DDT type."""
         return not self.__intrinsic
@@ -2127,20 +2112,50 @@ class VarDictionary(OrderedDict):
         # end while
         return newvar
     
-def write_ptr_def(outfile, indent, name, kind, dimstr, vtype, extra_space=0):
+def write_ptr_def(outfile, var, name, pointer_type, dvar, indent):
     """Write the definition line for local null pointer declaration to <outfile>."""
-    comma = ', '
-    if kind:
-        dstr = "{type}({kind}){cspace}pointer          :: {name}{dims}{cspace2} => null()"
-        cspace = comma + ' '*(extra_space + 20 - len(vtype) - len(kind))
-        cspace2 = ' '*(20 -len(name) - len(dimstr))
+
+    # Get local name for number of threads and convert to string.
+    lname_thrd_count = dvar.get_prop_value('local_name')
+    if lname_thrd_count:
+        dims = "1:" + lname_thrd_count
     else:
-        dstr = "{type}{cspace}pointer          :: {name}{dims}{cspace2} => null()"
-        cspace = comma + ' '*(extra_space + 22 - len(vtype))
-        cspace2 = ' '*(20 -len(name) - len(dimstr))
+        dims = '1'
     # end if
-    outfile.write(dstr.format(type=vtype, kind=kind, name=name, dims=dimstr,
-                              cspace=cspace, cspace2=cspace2), indent)
+
+    # Write local pointer variable definition.
+    comma = ', '
+    dstr = "type({pointer_type}){comma} dimension({dims}) :: {name}"
+    outfile.write(dstr.format(pointer_type=pointer_type, comma=comma, dims=dims, name=name),indent)
+
+def write_ptr_type_def(outfile, var, name, indent):
+    """Write type defintion for local pointer."""
+
+    # Grab attributes needed for definition.
+    kind = var.get_prop_value('kind')
+    dims = var.get_dimensions()
+    if var.is_ddt():
+        vtype = 'type'
+    else:
+        vtype = var.get_prop_value('type')
+    # end if
+    if dims:
+        dimstr = '(:' + ',:'*(len(dims) - 1) + ')'
+    else:
+        dimstr = ''
+    # endif
+
+    # Write local pointer type definition.
+    dstrA = "type :: {name}"
+    if kind:
+        dstrB = "{type}({kind}), dimension{dimstr}, pointer :: p => null()"
+    else:
+        dstrB = "{type}, dimension{dimstr}, pointer :: p => null()"
+    # end if
+    dstrC = "end type {name}"
+    outfile.write(dstrA.format(name=name), indent)
+    outfile.write(dstrB.format(type=vtype, kind=kind, dimstr=dimstr), indent+1)
+    outfile.write(dstrC.format(name=name), indent)
 
     
 ###############################################################################
