@@ -1670,7 +1670,7 @@ class Scheme(SuiteObject):
             else:
                 lname = svar.get_prop_value('local_name')
             # end if
-            lname_ptr = lname + '_ptr'
+            lname_ptr = svar.get_prop_value('local_name') + '_ptr'
             dims = '1'
             if (thrd_num):
                 dims = thrd_num.get_prop_value('local_name')
@@ -1696,8 +1696,7 @@ class Scheme(SuiteObject):
             else:
                 lname = svar.get_prop_value('local_name')
             # end if
-
-            lname_ptr = lname + '_ptr'
+            lname_ptr = svar.get_prop_value('local_name') + '_ptr'
             dims = '1'
             if (thrd_num):
                 dims = thrd_num.get_prop_value('local_name')
@@ -1712,15 +1711,21 @@ class Scheme(SuiteObject):
         # the local_name in var.
         sname = var.get_prop_value('standard_name')
         svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+
+        thrd_num =  self.__group.call_list.find_variable(standard_name='ccpp_thread_number', any_scope=False)
         if (dict_var):
             intent = var.get_prop_value('intent')
             if (intent == 'out' or intent == 'inout'):
                 (conditional, vars_needed) = dict_var.conditional(cldicts)
                 if (has_transform):
-                    lname = svar.get_prop_value('local_name')+'_local'
-                    lname_ptr = lname + '_ptr'
+                    lname = svar.get_prop_value('local_name') +'_local'
+                    lname_ptr = svar.get_prop_value('local_name') + '_ptr'
+                    dims = '1'
+                    if (thrd_num):
+                        dims = thrd_num.get_prop_value('local_name')
+                    # end if
                     outfile.write(f"if {conditional} then", indent)
-                    outfile.write(f"{lname} = {lname_ptr}", indent+1)
+                    outfile.write(f"{lname} = {lname_ptr}({dims})%p", indent+1)
                     outfile.write(f"end if", indent)
                 # end if
             # end if
@@ -2489,6 +2494,7 @@ class Group(SuiteObject):
         allocatable_var_set = set()
         optional_var_set = set()
         pointer_var_set = list()
+        inactive_var_set = set()
         pointer_type_set = list()
         pointer_type_names = list()
         for item in [self]:# + self.parts:
@@ -2507,8 +2513,12 @@ class Group(SuiteObject):
                     dims = var.get_dimensions()
                     if (dims is not None) and dims:
                         if opt_var:
-                            subpart_optional_vars[lname] = (var, item, opt_var)
-                            optional_var_set.add(lname)
+                            if (self.call_list.find_variable(standard_name=sname)):
+                                subpart_optional_vars[lname] = (var, item, opt_var)
+                                optional_var_set.add(lname)
+                            else:
+                                inactive_var_set.add(var)
+                            # end if
                         else:
                             subpart_allocate_vars[lname] = (var, item, opt_var)
                             allocatable_var_set.add(lname)
@@ -2519,7 +2529,9 @@ class Group(SuiteObject):
                 # end if
             # end for
             # All optional dummy variables within group need to have 
-            # an associated pointer array declared. 
+            # an associated pointer array declared.
+            var_thrd_count = self.find_variable(standard_name='ccpp_thread_count',any_scope=True)
+            var_thrd_num   = self.find_variable(standard_name='ccpp_thread_number',any_scope=True)
             for cvar in self.call_list.variable_list():
                 opt_var = cvar.get_prop_value('optional')
                 if opt_var:
@@ -2548,9 +2560,50 @@ class Group(SuiteObject):
                         pointer_type_names.append(pointer_type_name)
                         pointer_type_set.append([pointer_type_name,cvar])
                     # end if
-                    var_thrd_count = self.find_variable(standard_name='ccpp_thread_count',any_scope=True)
-                    var_thrd_num   = self.find_variable(standard_name='ccpp_thread_number',any_scope=True)
                     pointer_var_set.append([name, cvar, pointer_type_name, var_thrd_count, var_thrd_num])
+                # end if
+            # end for
+            # Any optional arguments that are not requested by the host need to have
+            # a local null pointer passed from the group to the scheme.
+            for ivar in inactive_var_set:
+                name = ivar.get_prop_value('local_name')+'_ptr'
+                kind = ivar.get_prop_value('kind')
+                dims = ivar.get_dimensions()
+                if ivar.is_ddt():
+                    vtype = 'type'
+                else:
+                    vtype = ivar.get_prop_value('type')
+                # end if
+                if dims:
+                    dimstr = '(:' + ',:'*(len(dims) - 1) + ')'
+                else:
+                    dimstr = ''
+                # end if
+                # Get type for pointer DDT.
+                if vtype == 'character' and 'len=' in kind:
+                    pointer_type_name = f"{vtype}_{kind.replace('=','')}_r{len(dims)}_ptr_arr_type"
+                elif kind:
+                    pointer_type_name = f"{vtype}_{kind}_rank{len(dims)}_ptr_arr_type"
+                else:
+                    pointer_type_name = f"{vtype}_default_kind_rank{len(dims)}_ptr_arr_type"
+                # end if
+                if not pointer_type_name in pointer_type_names:
+                    pointer_type_names.append(pointer_type_name)
+                    pointer_type_set.append([pointer_type_name,cvar])
+                # end if
+                pointer_var_set.append([name, ivar, pointer_type_name, var_thrd_count, var_thrd_num])
+            # end for
+            # Any arguments used in variable transforms before or after the
+            # Scheme call? If so, declare local copy for reuse in the Group cap.
+            for ivar in self.transform_locals:
+                lname = ivar.get_prop_value('local_name')
+                opt_var = ivar.get_prop_value('optional')
+                dims = ivar.get_dimensions()
+                if (dims is not None) and dims:
+                    subpart_allocate_vars[lname] = (ivar, item, opt_var)
+                    allocatable_var_set.add(lname)
+                else:
+                    subpart_scalar_vars[lname] = (ivar, item, opt_var)
                 # end if
             # end for
         # end for

@@ -2115,10 +2115,10 @@ class VarDictionary(OrderedDict):
 def write_ptr_def(outfile, var, name, pointer_type, dvar, indent):
     """Write the definition line for local null pointer declaration to <outfile>."""
 
-    # Get local name for number of threads and convert to string.
-    lname_thrd_count = dvar.get_prop_value('local_name')
-    if lname_thrd_count:
-        dims = "1:" + lname_thrd_count
+    # Get local name for number of threads and convert to string. Only if the
+    # number of threads, <dvar>, is provided by the host.
+    if dvar:
+        dims = "1:" + dvar.get_prop_value('local_name')
     else:
         dims = '1'
     # end if
