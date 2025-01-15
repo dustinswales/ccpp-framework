@@ -249,7 +249,7 @@ def find_module_name(filename):
                             if key == 'name' :
                                 name = value
                             if key == 'type' :
-                                if value == 'module':
+                                if (value == 'module') or (value == 'scheme'):
                                     module_name = name
                                     break
                             # end if
@@ -858,15 +858,14 @@ class MetadataSection(ParseSource):
         if self.header_type == "ddt":
             known_ddts.append(self.title)
         # end if
-        # We need a default module if none was listed
-        if self.module is None:
-            # DJS2024: Try to use module name from metadata file module header.
-            # This is needed for modules holding DDTs, with different module/filenames
-            self.__module_name = find_module_name(self.__pobj.filename)
-            if (self.__module_name == ''):
-                self.__module_name = self._default_module()
-            # end if
+        # We need a default module if none was listed.
+        # DJS2024: First, try to find module_name from the metadata. Otherwise,
+        # use file name as module_name (default).
+        self.__module_name = find_module_name(self.__pobj.filename)
+        if (self.__module_name == ''):
+            self.__module_name = self._default_module()
         # end if
+
         #  Initialize our ParseSource parent
         super().__init__(self.title, self.header_type, self.__pobj)
         # Read the variables
