@@ -528,9 +528,9 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
         # End if
         if stdname not in CCPP_CONSTANT_VARS:
             lname = var_dict.var_call_string(hvar, loop_vars=loop_vars)
-            # DJS2025: Check to see if call_string for <hvar> contains an
-            # array reference to a standard_name.
-            # If so, replace standard_name with the call_string for <hvar[standard_name]>.
+            # DJS2025: Check to see if call_string for variable <hvar> contains any
+            # array references with a standard_name, <sname_sub>. If so, replace
+            # <hvar_sub> with full reference, <var_call_string(<hvar_sub>)>.
             str_start = 0
             while True:
                 dimdA = lname.find('(',str_start)
