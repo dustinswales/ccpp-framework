@@ -5,6 +5,8 @@
 """
 
 import math
+import sys
+sys.setrecursionlimit(1500)
 
 class FortranWriter:
     """Class to turn output into properly continued and indented Fortran code
