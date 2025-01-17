@@ -485,7 +485,7 @@ class SuiteObject(VarDictionary):
                     emsg = f"{self.name}: Cannot have unnamed/empty string dimension"
                     raise ParseInternalError(emsg)
                 # end if
-                dvar = self.find_variable(standard_name=vardim,
+                dvar = self.find_variable(standard_name=vardim.lower(),
                                           any_scope=True)
                 if dvar is None:
                     if self.run_env.debug:
@@ -1413,13 +1413,13 @@ class Scheme(SuiteObject):
         if dimensions:
             for dim in dimensions:
                 if not ':' in dim:
-                    dim_var = self.find_variable(standard_name=dim)
+                    dim_var = self.find_variable(standard_name=dim.lower())
                     if not dim_var:
                         raise Exception(f"No dimension with standard name '{dim}'")
                     self.update_group_call_list_variable(dim_var)
                 else:
                     (ldim, udim) = dim.split(":")
-                    ldim_var = self.find_variable(standard_name=ldim)
+                    ldim_var = self.find_variable(standard_name=ldim.lower())
                     if not ldim_var:
                         # DJS2025: To allow for numerical dimensions in metadata.
                         if not ldim.isnumeric():
@@ -1429,7 +1429,7 @@ class Scheme(SuiteObject):
                     if ldim_var:
                         self.update_group_call_list_variable(ldim_var)
                     # end if
-                    udim_var = self.find_variable(standard_name=udim)
+                    udim_var = self.find_variable(standard_name=udim.lower())
                     if not udim_var:
                         # DJS2025: To allow for numerical dimensions in metadata.
                         if not udim.isnumeric():
@@ -1589,7 +1589,7 @@ class Scheme(SuiteObject):
                         (ldim, udim) = dim.split(":")
                         # Get dimension for lower bound
                         for var_dict in cldicts:
-                            dvar = var_dict.find_variable(standard_name=ldim, any_scope=False)
+                            dvar = var_dict.find_variable(standard_name=ldim.lower(), any_scope=False)
                             if dvar is not None:
                                 ldim_lname = dvar.get_prop_value('local_name')
                                 break
@@ -1605,7 +1605,7 @@ class Scheme(SuiteObject):
                         # end if
                         # Get dimension for upper bound
                         for var_dict in cldicts:
-                            dvar = var_dict.find_variable(standard_name=udim, any_scope=False)
+                            dvar = var_dict.find_variable(standard_name=udim.lower(), any_scope=False)
                             if dvar is not None:
                                 udim_lname = dvar.get_prop_value('local_name')
                                 break

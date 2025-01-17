@@ -708,7 +708,7 @@ class Var:
                     lname = ""
                     for item in dim.split(':'):
                         if item:
-                            dvar = var_dict.find_variable(standard_name=item,
+                            dvar = var_dict.find_variable(standard_name=item.lower(),
                                                           any_scope=False)
                             if dvar is None:
                                 try:
@@ -1681,9 +1681,30 @@ class VarDictionary(OrderedDict):
                                        context=newvar.context)
             # end if
         # end if
+        # DJS2024: Check if local_name exists in Group. If applicable, Create new 
+        # variable with uniquie name. There are two instances when new names are
+        # created:
+        # - Same <local_name> used in different DDTs.
+        # - Different <standard_name> using the same <local_name> in a Group.
+        #   During the Group analyze phase, <gen_unique> is True.
         lname = newvar.get_prop_value('local_name')
         lvar = self.find_local_name(lname)
         if lvar is not None:
+            # DJS2025: Check if <lvar> is part of a different DDT than <newvar>.
+            # If so, generate unique name.
+            # The API uses the full variable references when calling the Group Caps,
+            # <lvar.call_string(self))> and <newvar.call_string(self)>.
+            # Arguments to the Caps reference the variables local name,
+            # <lvar.get_prop_value('local_name')> and <newvar.get_prop_value('local_name')>
+
+            newvar_callstr = newvar.call_string(self)
+            lvar_callstr   = lvar.call_string(self)
+            if newvar_callstr and lvar_callstr:
+                if newvar_callstr != lvar_callstr:
+                    gen_unique = True
+                # end if
+            # end if
+
             if gen_unique:
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)
@@ -1693,6 +1714,8 @@ class VarDictionary(OrderedDict):
                 # same local_name
                 lname = new_lname
             elif not exists_ok:
+                print("SWALES  call_string ",lvar.call_string(self))
+                print("SWALES  call_string ",newvar.call_string(self))
                 errstr = 'Invalid local_name: {} already registered{}'
                 cstr = context_string(lvar.source.context, with_comma=True)
                 raise ParseSyntaxError(errstr.format(lname, cstr),
