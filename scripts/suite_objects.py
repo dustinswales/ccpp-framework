@@ -474,7 +474,7 @@ class SuiteObject(VarDictionary):
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
             # We need to make sure that this variable's dimensions are available
-            # DJS2024 Asks: Isn't this on;y true for DEBUG mode, where the dimensions
+            # DJS2024 Asks: Isn't this only true for DEBUG mode, where the dimensions
             # are needed for array size checks? Otherwise, there is no CCPP requirement
             # stating that the dimensions are scheme arguments?
             for vardim in newvar.get_dim_stdnames(include_constants=False):
@@ -929,7 +929,6 @@ class SuiteObject(VarDictionary):
                 new_dict_dims = dict_dims
                 match = True
             # end if
-
             # Create compatability object, containing any necessary forward/reverse 
             # transforms from <var> and <dict_var>
             compat_obj = var.compatible(dict_var, run_env)
@@ -1592,18 +1591,32 @@ class Scheme(SuiteObject):
                         for var_dict in cldicts:
                             dvar = var_dict.find_variable(standard_name=ldim, any_scope=False)
                             if dvar is not None:
+                                ldim_lname = dvar.get_prop_value('local_name')
                                 break
+                            # end if
+                        # end for
                         if not dvar:
-                            raise Exception(f"No variable with standard name '{ldim}' in cldicts")
-                        ldim_lname = dvar.get_prop_value('local_name')
+                            # DJS2025: To allow for numerical dimensions in metadata.
+                            if ldim.isnumeric():
+                                ldim_lname = ldim
+                            else:
+                                raise Exception(f"No variable with standard name '{ldim}' in cldicts")
+                            # end if
+                        # end if
                         # Get dimension for upper bound
                         for var_dict in cldicts:
                             dvar = var_dict.find_variable(standard_name=udim, any_scope=False)
                             if dvar is not None:
+                                udim_lname = dvar.get_prop_value('local_name')
                                 break
                         if not dvar:
-                            raise Exception(f"No variable with standard name '{udim}' in cldicts")
-                        udim_lname = dvar.get_prop_value('local_name')
+                            # DJS2025: To allow for numerical dimensions in metadata.
+                            if udim.isnumeric():
+                                udim_lname = udim
+                            else:
+                                raise Exception(f"No variable with standard name '{udim}' in cldicts")
+                            # end if
+                        # end if
                         # Assemble dimensions and bounds for size checking
                         dim_length = f'{udim_lname}-{ldim_lname}+1'
                         dim_string = ":"
