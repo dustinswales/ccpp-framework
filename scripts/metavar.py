@@ -731,11 +731,7 @@ class Var:
                             errmsg = 'No local variable {} in {}{}'
                             ctx = context_string(self.context)
                             dname = var_dict.name
-                            # DJS2025: Not sure why, but dimensions for one variable cannot
-                            # be found, but this is not an error since this dimension is not
-                            # part of a loop variable. I don't know how to fix this!!!!!
-                            lname = ':'
-                            #raise CCPPError(errmsg.format(item, dname, ctx))
+                            raise CCPPError(errmsg.format(item, dname, ctx))
                         # end if
                     # end for
                 # end if
