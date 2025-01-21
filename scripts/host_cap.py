@@ -582,14 +582,23 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
             mspc = (maxmod - len(mod[0]))*' '
             cap.write("use {}, {}only: {}".format(mod[0], mspc, mod[1]), 1)
         # End for
+        # Write out any suite part use statements
+        max_suite_len = host_model.ddt_lib.max_mod_name_len
+        for suite in api.suites:
+            max_suite_len = max(max_suite_len, len(suite.module))
+            mspc = (max_suite_len - len(suite.module))*' '
+            for stage in CCPP_STATE_MACH.transitions():
+                spart_list = suite_part_list(suite, stage)
+                for _, spart in sorted(enumerate(spart_list)):
+                    stmt = "use {}, {}only: {}"
+                    cap.write(stmt.format(suite.module, mspc, spart.name), 2)
+                # end for
+            # end for
+        # end for
         mspc = ' '*(maxmod - len(CONST_DDT_MOD))
         cap.write(f"use {CONST_DDT_MOD}, {mspc}only: {CONST_DDT_NAME}", 1)
         cap.write(f"use {CONST_DDT_MOD}, {mspc}only: {CONST_PROP_TYPE}", 1)
         cap.write_preamble()
-        max_suite_len = host_model.ddt_lib.max_mod_name_len
-        for suite in api.suites:
-            max_suite_len = max(max_suite_len, len(suite.module))
-        # End for
         cap.comment("Public Interfaces", 1)
         # CCPP_STATE_MACH.transitions represents the host CCPP interface
         for stage in CCPP_STATE_MACH.transitions():
@@ -706,15 +715,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
             cap.write(_SUBHEAD.format(api_vars=api_vlist,
                                       host_model=host_model.name,
                                       stage=stage), 1)
-            # Write out any suite part use statements
-            for suite in api.suites:
-                mspc = (max_suite_len - len(suite.module))*' '
-                spart_list = suite_part_list(suite, stage)
-                for _, spart in sorted(enumerate(spart_list)):
-                    stmt = "use {}, {}only: {}"
-                    cap.write(stmt.format(suite.module, mspc, spart.name), 2)
-                # End for
-            # End for
+
             # Write out any host model DDT input var use statements
             host_model.ddt_lib.write_ddt_use_statements(hdvars, cap, 2,
                                                         pad=max_suite_len)
