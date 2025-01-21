@@ -1503,6 +1503,7 @@ class Scheme(SuiteObject):
         dimensions = var.get_dimensions()
         active = var.get_prop_value('active')
         allocatable = var.get_prop_value('allocatable')
+        vtype = var.get_prop_value('type')
 
         # Need the local name from the group call list,
         # from the locally-defined variables of the group,
@@ -1635,38 +1636,45 @@ class Scheme(SuiteObject):
             ubound_string = '(' + ','.join(ubound_strings) + ')'
 
             # Write size check
-            tmp_indent = indent
-            if conditional != '.true.':
-                tmp_indent = indent + 1
-                outfile.write(f"if {conditional} then", indent)
-            # end if
-            outfile.write(f"! Check size of array {local_name}", tmp_indent)
-            outfile.write(f"if (size({local_name}{dim_string}) /= {array_size}) then", tmp_indent)
-            outfile.write(f"write({errmsg}, '(a)') 'In group {self.__group.name} before {self.__subroutine_name}:'", tmp_indent+1)
-            outfile.write(f"write({errmsg}, '(2(a,i8))') 'for array {local_name}, expected size ', {array_size}, ' but got ', size({local_name})", tmp_indent+1)
-            outfile.write(f"{errcode} = 1", tmp_indent+1)
-            outfile.write(f"return", tmp_indent+1)
-            outfile.write(f"end if", tmp_indent)
-            if conditional != '.true.':
-                outfile.write(f"end if", indent)
-            # end if
-            outfile.write('',indent)
-
-            # Assign lower/upper bounds to internal_var (scalar) if intent is not out
-            if not intent == 'out':
-                internal_var_lname = internal_var.get_prop_value('local_name')
+            # DJS2025: Only for types int and real? e..g Prebuild?)
+            if (vtype == "integer") or (vtype == "real"):
                 tmp_indent = indent
                 if conditional != '.true.':
                     tmp_indent = indent + 1
                     outfile.write(f"if {conditional} then", indent)
                 # end if
-                outfile.write(f"! Assign lower/upper bounds of {local_name} to {internal_var_lname}", tmp_indent)
-                outfile.write(f"{internal_var_lname} = {local_name}{lbound_string}", tmp_indent)
-                outfile.write(f"{internal_var_lname} = {local_name}{ubound_string}", tmp_indent)
+                outfile.write(f"! Check size of array {local_name}", tmp_indent)
+                outfile.write(f"if (size({local_name}{dim_string}) /= {array_size}) then", tmp_indent)
+                outfile.write(f"write({errmsg}, '(a)') 'In group {self.__group.name} before {self.__subroutine_name}:'", tmp_indent+1)
+                outfile.write(f"write({errmsg}, '(2(a,i8))') 'for array {local_name}, expected size ', {array_size}, ' but got ', size({local_name})", tmp_indent+1)
+                outfile.write(f"{errcode} = 1", tmp_indent+1)
+                outfile.write(f"return", tmp_indent+1)
+                outfile.write(f"end if", tmp_indent)
                 if conditional != '.true.':
                     outfile.write(f"end if", indent)
                 # end if
                 outfile.write('',indent)
+            # end if
+
+            # Assign lower/upper bounds to internal_var (scalar) if intent is not out
+            # DJS2025: Only for types int and real? e..g Prebuild?)
+            if (vtype == "integer") or (vtype == "real"):
+                if not intent == 'out':
+                    internal_var_lname = internal_var.get_prop_value('local_name')
+                    tmp_indent = indent
+                    if conditional != '.true.':
+                        tmp_indent = indent + 1
+                        outfile.write(f"if {conditional} then", indent)
+                    # end if
+                    outfile.write(f"! Assign lower/upper bounds of {local_name} to {internal_var_lname}", tmp_indent)
+                    outfile.write(f"{internal_var_lname} = {local_name}{lbound_string}", tmp_indent)
+                    outfile.write(f"{internal_var_lname} = {local_name}{ubound_string}", tmp_indent)
+                    if conditional != '.true.':
+                        outfile.write(f"end if", indent)
+                    # end if
+                    outfile.write('',indent)
+                # end if
+            # end if
 
     def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
         """Write local pointer association for optional variable."""
