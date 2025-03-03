@@ -1681,8 +1681,8 @@ class VarDictionary(OrderedDict):
                                        context=newvar.context)
             # end if
         # end if
-        # DJS2024: Check if local_name exists in Group. If applicable, Create new 
-        # variable with uniquie name. There are two instances when new names are
+        # Check if local_name exists in Group. If applicable, Create new
+        # variable with unique name. There are two instances when new names are
         # created:
         # - Same <local_name> used in different DDTs.
         # - Different <standard_name> using the same <local_name> in a Group.
@@ -1690,7 +1690,7 @@ class VarDictionary(OrderedDict):
         lname = newvar.get_prop_value('local_name')
         lvar = self.find_local_name(lname)
         if lvar is not None:
-            # DJS2025: Check if <lvar> is part of a different DDT than <newvar>.
+            # Check if <lvar> is part of a different DDT than <newvar>.
             # The API uses the full variable references when calling the Group Caps,
             # <lvar.call_string(self))> and <newvar.call_string(self)>.
             # Within the context of a full reference, it is allowable for local_names
@@ -1704,20 +1704,17 @@ class VarDictionary(OrderedDict):
                     # end if
                 # end if
             # end if
-
             if gen_unique:
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)
-                # DJS2024: Local_name needs to be the local_name for the new
+                # Local_name needs to be the local_name for the new
                 # internal variable, otherwise multiple instances of the same
                 # local_name in the Group cap will all be overwritten with the
                 # same local_name
                 lname = new_lname
             elif not exists_ok:
-                errstr = 'Invalid local_name: {} already registered{}'
-                cstr = context_string(lvar.source.context, with_comma=True)
-                raise ParseSyntaxError(errstr.format(lname, cstr),
-                                       context=newvar.source.context)
+                errstr = f"Invalid local_name: {lname} already registered"
+                raise ParseSyntaxError(errstr, context=newvar.source.context)
             # end if (no else, things are okay)
         # end if (no else, things are okay)
         # Check if this variable has a parent (i.e., it is an array reference)
