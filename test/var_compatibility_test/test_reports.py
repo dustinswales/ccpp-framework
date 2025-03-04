@@ -60,6 +60,7 @@ _HOST_FILES = [os.path.join(_BUILD_DIR, "ccpp", "test_host_ccpp_cap.F90")]
 _SUITE_FILES = [os.path.join(_BUILD_DIR, "ccpp", "ccpp_var_compatibility_suite_cap.F90")]
 _UTILITY_FILES = [os.path.join(_BUILD_DIR, "ccpp", "ccpp_kinds.F90"),
                   os.path.join(_SRC_DIR, "ccpp_constituent_prop_mod.F90"),
+                  os.path.join(_SRC_DIR, "ccpp_scheme_utils.F90"),
                   os.path.join(_SRC_DIR, "ccpp_hashable.F90"),
                   os.path.join(_SRC_DIR, "ccpp_hash_table.F90")]
 _CCPP_FILES = _UTILITY_FILES + \
@@ -74,9 +75,13 @@ _INPUT_VARS_VAR_ACTION = ["horizontal_loop_begin", "horizontal_loop_end", "horiz
                           "effective_radius_of_stratiform_cloud_graupel",
                           "cloud_graupel_number_concentration",
                           "scalar_variable_for_testing",
+                          "scalar_variable_for_testing_a",
+                          "scalar_variable_for_testing_b",
+                          "scalar_variable_for_testing_c",
                           "scheme_order_in_suite",
                           "flag_indicating_cloud_microphysics_has_graupel",
-                          "flag_indicating_cloud_microphysics_has_ice"]
+                          "flag_indicating_cloud_microphysics_has_ice",
+                          "num_subcycles_for_effr"]
 _OUTPUT_VARS_VAR_ACTION = ["ccpp_error_code", "ccpp_error_message",
                            "effective_radius_of_stratiform_cloud_ice_particle",
                            "effective_radius_of_stratiform_cloud_liquid_water_particle",
