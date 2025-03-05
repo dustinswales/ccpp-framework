@@ -2,6 +2,10 @@ module test_host_data
 
   use ccpp_kinds, only: kind_phys
   use mod_rad_ddt, only: ty_rad_lw, ty_rad_sw
+
+  implicit none
+  private
+
   !> \section arg_table_physics_state  Argument Table
   !! \htmlinclude arg_table_physics_state.html
   type physics_state
@@ -25,7 +29,8 @@ module test_host_data
 
   end type physics_state
 
-  public allocate_physics_state
+  public :: physics_state
+  public :: allocate_physics_state
 
 contains
 

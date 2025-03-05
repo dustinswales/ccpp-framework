@@ -144,7 +144,8 @@ class CallList(VarDictionary):
                     # end if
                     lname = dvar.get_prop_value('local_name')
                     # Optional variables in the caps are associated with
-                    # local pointers of <lname>_ptr
+                    # local pointers of <sname_ptr>. sname_ptr needs to use
+                    # local_name in Group's call list (cldict.find_variable).
                     if dvar.get_prop_value('optional'):
                         sname = dvar.get_prop_value('standard_name')
                         svar  = cldict.find_variable(standard_name=sname, any_scope=True)
@@ -1925,7 +1926,7 @@ class Scheme(SuiteObject):
         #
         if self.__optional_vars:
             outfile.write('! Associate conditional variables', indent+1)
-        # end if
+        # end if 
         for (dict_var, var, has_transform) in self.__optional_vars:
             tstmt = self.associate_optional_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         # end for
@@ -1944,7 +1945,7 @@ class Scheme(SuiteObject):
         #
         first_ptr_declaration=True
         for (dict_var, var, has_transform) in self.__optional_vars:
-            if first_ptr_declaration:
+            if first_ptr_declaration: 
                 outfile.write('! Copy any local pointers to dummy/local variables', indent+1)
                 first_ptr_declaration=False
             # end if

@@ -5,6 +5,7 @@ set(SOURCES_F90
     ccpp_hashable.F90
     ccpp_hash_table.F90
     ccpp_constituent_prop_mod.F90
+    ccpp_scheme_utils.F90
 )
 
 # Generate list of Fortran modules from defined sources
