@@ -2166,7 +2166,11 @@ def write_ptr_type_def(outfile, var, name, indent):
     # Write local pointer type definition.
     dstrA = "type :: {name}"
     if kind:
-        dstrB = "{type}({kind}), dimension{dimstr}, pointer :: p => null()"
+        if dims:
+            dstrB = "{type}({kind}), dimension{dimstr}, pointer :: p => null()"
+        else:
+            dstrB = "{type}({kind}), pointer :: p => null()"
+        # end if
     else:
         dstrB = "{type}, dimension{dimstr}, pointer :: p => null()"
     # end if
