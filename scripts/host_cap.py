@@ -534,6 +534,14 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
                 # end if
                 str_start += dimdB+1
             # end while
+            # Also check if {sp_lname} has an array reference to a loop varaible, if so,
+            # remove array reference from LHS call_string.
+            if stdname in CCPP_LOOP_VAR_STDNAMES:
+                dimdA = sp_lname.find('(',0)
+                if (dimdA > 0):
+                    sp_lname = sp_lname[0:dimdA]
+                # endif
+            # endif
             hmvars.append(f"{sp_lname}={lname}")
             # end if
         # end if

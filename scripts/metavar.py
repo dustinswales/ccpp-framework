@@ -727,6 +727,17 @@ class Var:
                         if iname is not None:
                             lname = lname + isep + iname
                             isep = ':'
+                        # DJS2025: HACK. Check if dimension provided by host?
+                        elif item == "ccpp_chunk_number":
+                            errmsg = "SWALES: Cannot find {} in {}. Use {} instead"
+                            lname = "ccpp_cfg%chunk_no"
+                            ctx = context_string(self.context)
+                            #self.__run_env.logger.warning(errmsg.format(item,ctx,lname))
+                        elif item == "ccpp_chunk_count":
+                            errmsg = "SWALES: Cannot find {} in {}. Use {} instead"
+                            lname = "ccpp_cfg%chunk_cnt"
+                            ctx = context_string(self.context)
+                            #self.__run_env.logger.warning(errmsg.format(item,ctx,lname))
                         else:
                             errmsg = 'No local variable {} in {}{}'
                             ctx = context_string(self.context)
@@ -1704,7 +1715,7 @@ class VarDictionary(OrderedDict):
                     # end if
                 # end if
             # end if
-            if gen_unique:
+            if gen_unique and (newvar_callstr == lname):
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)
                 # Local_name needs to be the local_name for the new
