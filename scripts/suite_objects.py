@@ -1478,7 +1478,7 @@ class Scheme(SuiteObject):
             raise Exception(f"No variable with standard name '{udim}' in cldicts")
         udim_lname = dvar.get_prop_value('local_name')
         # Assemble dimensions and bounds for size checking
-        dim_length = f'{udim_lname}-{ldim_lname}+1'
+        dim_length = f'abs({udim_lname}-{ldim_lname})+1'
         # If the variable that uses these dimensions is not in the group's call
         # list, then it is defined as a module variable for this group and the
         # dimensions run from ldim to udim, otherwise from 1:dim_length.
@@ -1489,7 +1489,7 @@ class Scheme(SuiteObject):
         else:
             dim_string = ":"
             lbound_string = '1'
-            ubound_string = f'{udim_lname}-{ldim_lname}+1'
+            ubound_string = f'abs({udim_lname}-{ldim_lname})+1'
         return (dim_length, dim_string, lbound_string, ubound_string)
 
     def write_var_debug_check(self, var, internal_var, cldicts, outfile, errcode, errmsg, indent):
@@ -1610,6 +1610,8 @@ class Scheme(SuiteObject):
                             if dvar is not None:
                                 udim_lname = dvar.get_prop_value('local_name')
                                 break
+                            # end if
+                        # end for
                         if not dvar:
                             # DJS2025: To allow for numerical dimensions in metadata.
                             if udim.isnumeric():
@@ -1619,7 +1621,7 @@ class Scheme(SuiteObject):
                             # end if
                         # end if
                         # Assemble dimensions and bounds for size checking
-                        dim_length = f'{udim_lname}-{ldim_lname}+1'
+                        dim_length = f'abs({udim_lname}-{ldim_lname})+1'
                         dim_string = ":"
                         lbound_string = ldim_lname
                         ubound_string = udim_lname
@@ -1636,7 +1638,7 @@ class Scheme(SuiteObject):
             ubound_string = '(' + ','.join(ubound_strings) + ')'
 
             # Write size check
-            # DJS2025: Only for types int and real? e..g Prebuild?)
+            # Only for types int and real
             if (vtype == "integer") or (vtype == "real"):
                 tmp_indent = indent
                 if conditional != '.true.':
@@ -1656,24 +1658,32 @@ class Scheme(SuiteObject):
                 outfile.write('',indent)
             # end if
 
-            # Assign lower/upper bounds to internal_var (scalar) if intent is not out
-            # DJS2025: Only for types int and real? e..g Prebuild?)
-            if (vtype == "integer") or (vtype == "real"):
-                if not intent == 'out':
-                    internal_var_lname = internal_var.get_prop_value('local_name')
-                    tmp_indent = indent
-                    if conditional != '.true.':
-                        tmp_indent = indent + 1
-                        outfile.write(f"if {conditional} then", indent)
-                    # end if
-                    outfile.write(f"! Assign lower/upper bounds of {local_name} to {internal_var_lname}", tmp_indent)
-                    outfile.write(f"{internal_var_lname} = {local_name}{lbound_string}", tmp_indent)
-                    outfile.write(f"{internal_var_lname} = {local_name}{ubound_string}", tmp_indent)
-                    if conditional != '.true.':
-                        outfile.write(f"end if", indent)
-                    # end if
-                    outfile.write('',indent)
+            # Write array bounds check.
+            # Assign lower/upper bounds to internal_var (scalar)
+            #  - If intent is not out
+            #  - Only for types int and real.
+            #  - Skip test for assumed-shape arrays.
+            assumed_shape = svar.get_prop_value('assumed_shape')
+            if assumed_shape:
+                lmsg = "Skipping error check for {}. Cant perfrom this check on assumed-shape Scheme arguments"
+                self.run_env.logger.info(lmsg.format(local_name))
+            elif (vtype != "integer") or (vtype != "real"):
+                lmsg = "Skipping error check for {}. Can only perform check on types real and integer, not {}"
+                self.run_env.logger.info(lmsg.format(local_name,vtype))
+            elif not intent == 'out':
+                internal_var_lname = internal_var.get_prop_value('local_name')
+                tmp_indent = indent
+                if conditional != '.true.':
+                    tmp_indent = indent + 1
+                    outfile.write(f"if {conditional} then", indent)
                 # end if
+                outfile.write(f"! Assign lower/upper bounds of {local_name} to {internal_var_lname}", tmp_indent)
+                outfile.write(f"{internal_var_lname} = {local_name}{lbound_string}", tmp_indent)
+                outfile.write(f"{internal_var_lname} = {local_name}{ubound_string}", tmp_indent)
+                if conditional != '.true.':
+                    outfile.write(f"end if", indent)
+                # end if
+                outfile.write('',indent)
             # end if
 
     def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
@@ -1884,7 +1894,6 @@ class Scheme(SuiteObject):
                                              subname=self.subroutine_name,
                                              sub_lname_list = self.__reverse_transforms)
         #
-        outfile.write('', indent)
         outfile.write('if ({} == 0) then'.format(errcode), indent)
         #
         # Write debug checks (operating on variables
@@ -1894,7 +1903,6 @@ class Scheme(SuiteObject):
             outfile.write('! ##################################################################', indent+1)
             outfile.comment('Begin debug tests', indent+1)
             outfile.write('! ##################################################################', indent+1)
-            outfile.write('', indent+1)
         # end if
         for (var, internal_var) in self.__var_debug_checks:
             stmt = self.write_var_debug_check(var, internal_var, cldicts, outfile, errcode, errmsg, indent+1)
@@ -1903,7 +1911,6 @@ class Scheme(SuiteObject):
             outfile.write('! ##################################################################', indent+1)
             outfile.comment('End debug tests', indent+1)
             outfile.write('! ##################################################################', indent+1)
-            outfile.write('', indent+1)
         # end if
         #
         # Write any reverse (pre-Scheme) transforms.
@@ -1935,10 +1942,8 @@ class Scheme(SuiteObject):
         #
         if self._has_run_phase:
             stmt = 'call {}({})'
-            outfile.write('',indent+1)
             outfile.write('! Call scheme', indent+1)
             outfile.write(stmt.format(self.subroutine_name, my_args), indent+1)
-            outfile.write('',indent+1)
         # end if
         #
         # Copy any local pointers.
@@ -1951,7 +1956,7 @@ class Scheme(SuiteObject):
             # end if
             tstmt = self.assign_pointer_to_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
         # end for
-        outfile.write('',indent+1)
+
         #
         # Nullify any local pointers.
         #
@@ -1976,7 +1981,6 @@ class Scheme(SuiteObject):
             lvar_lname = lvar.get_prop_value('local_name')
             tstmt = self.write_var_transform(lvar_lname, dummy, rindices, lindices, compat_obj, outfile, indent+1, True)
         # end for
-        outfile.write('', indent)
         outfile.write('end if', indent)
 
     def schemes(self):
@@ -2750,15 +2754,20 @@ class Group(SuiteObject):
                                       {'errcode' : errcode, 'errmsg' : errmsg,
                                        'funcname' : self.name})
         # Write any loop match calculations
-        outfile.write("! Set horizontal loop extent",indent+1)
+        if self._loop_var_matches:
+            outfile.write("! Set horizontal loop extent",indent+1)
+        # end if
         for vmatch in self._loop_var_matches:
             action = vmatch.write_action(self, dict2=self.call_list)
             if action:
                 outfile.write(action, indent+1)
             # end if
         # end for
+        # end if
         # Allocate local arrays
-        outfile.write('\n! Allocate local arrays', indent+1)
+        if bool(allocatable_var_set):
+            outfile.write('\n! Allocate local arrays', indent+1)
+        # end if
         alloc_stmt = "allocate({}({}))"
         for lname in sorted(allocatable_var_set):
             var = subpart_allocate_vars[lname][0]
@@ -2774,7 +2783,9 @@ class Group(SuiteObject):
         # end for
         # Allocate suite vars
         if allocate:
-            outfile.write('\n! Allocate suite_vars', indent+1)
+            if suite_vars.variable_list():
+                outfile.write('\n! Allocate suite_vars', indent+1)
+            # end if
             for svar in suite_vars.variable_list():
                 dims = svar.get_dimensions()
                 if dims:

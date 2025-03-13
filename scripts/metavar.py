@@ -210,6 +210,8 @@ class Var:
                     VariableProperty('optional', bool, optional_in=True,
                                      default_in=False),
                     VariableProperty('target', bool, optional_in=True,
+                                     default_in=False),
+                    VariableProperty('assumed_shape', bool, optional_in=True,
                                      default_in=False)]
 
 # XXgoldyXX: v debug only
