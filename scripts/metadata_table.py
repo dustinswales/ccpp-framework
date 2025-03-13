@@ -139,6 +139,7 @@ from parse_tools import FORTRAN_ID, FORTRAN_SCALAR_REF, FORTRAN_SCALAR_REF_RE
 from parse_tools import check_fortran_ref, check_fortran_id
 from parse_tools import check_fortran_intrinsic
 from parse_tools import register_fortran_ddt_name, unique_standard_name
+from parse_tools import registered_fortran_ddt_name
 
 ########################################################################
 
@@ -877,10 +878,15 @@ class MetadataSection(ParseSource):
                             pval = pval_str
                             pname = 'ddt_type'
                         else:
-                            errmsg = "Unknown DDT type, {}".format(pval_str)
-                            self.__pobj.add_syntax_err(errmsg)
-                            self.__section_valid = False
-                            var_ok = False
+                            if registered_fortran_ddt_name(pval_str):
+                                pval = pval_str
+                                pname = 'ddt_type'
+                            else:
+                                errmsg = "Unknown DDT type, {}".format(pval_str)
+                                self.__pobj.add_syntax_err(errmsg)
+                                self.__section_valid = False
+                                var_ok = False
+                            # end if
                         # end if
                     else:
                         # Make sure this is a match
