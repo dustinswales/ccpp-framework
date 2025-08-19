@@ -1415,28 +1415,30 @@ class Scheme(SuiteObject):
                 if not ':' in dim:
                     dim_var = self.find_variable(standard_name=dim.lower())
                     if not dim_var:
-                        raise Exception(f"No dimension with standard name '{dim}'")
-                    self.update_group_call_list_variable(dim_var)
+                        # To allow for numerical dimensions in metadata.
+                        if not dim.isnumeric():
+                            raise Exception(f"No dimension with standard name '{dim}'")
+                        # end if
+                    else:
+                        self.update_group_call_list_variable(dim_var)
+                    # end if
                 else:
                     (ldim, udim) = dim.split(":")
                     ldim_var = self.find_variable(standard_name=ldim.lower())
                     if not ldim_var:
-                        # DJS2025: To allow for numerical dimensions in metadata.
+                        # To allow for numerical dimensions in metadata.
                         if not ldim.isnumeric():
                             raise Exception(f"No dimension with standard name '{ldim}'")
                         # end if
                     # end if
-                    if ldim_var:
-                        self.update_group_call_list_variable(ldim_var)
-                    # end if
-                    udim_var = self.find_variable(standard_name=udim.lower())
+                    self.update_group_call_list_variable(ldim_var)
+                    udim_var = self.find_variable(standard_name=udim)
                     if not udim_var:
-                        # DJS2025: To allow for numerical dimensions in metadata.
+                        # To allow for numerical dimensions in metadata.
                         if not udim.isnumeric():
                             raise Exception(f"No dimension with standard name '{udim}'")
                         # end if
-                    # endif
-                    if udim_var:
+                    else:
                         self.update_group_call_list_variable(udim_var)
                     # end if
 
@@ -1564,6 +1566,8 @@ class Scheme(SuiteObject):
             dim_strings = []
             lbound_strings = []
             ubound_strings = []
+            dim_lengths = []
+            local_names = []
             for dim in dimensions:
                 if not ':' in dim:
                     # In capgen, any true dimension (that is not a single index) does
@@ -1597,13 +1601,13 @@ class Scheme(SuiteObject):
                             # end if
                         # end for
                         if not dvar:
-                            # DJS2025: To allow for numerical dimensions in metadata.
+                            # To allow for numerical dimensions in metadata.
                             if ldim.isnumeric():
                                 ldim_lname = ldim
                             else:
                                 raise Exception(f"No variable with standard name '{ldim}' in cldicts")
-                            # end if
-                        # end if
+                            # endif
+                        # endif
                         # Get dimension for upper bound
                         for var_dict in cldicts:
                             dvar = var_dict.find_variable(standard_name=udim.lower(), any_scope=False)
@@ -1613,7 +1617,7 @@ class Scheme(SuiteObject):
                             # end if
                         # end for
                         if not dvar:
-                            # DJS2025: To allow for numerical dimensions in metadata.
+                            # To allow for numerical dimensions in metadata.
                             if udim.isnumeric():
                                 udim_lname = udim
                             else:
@@ -1630,7 +1634,9 @@ class Scheme(SuiteObject):
                     lbound_strings.append(lbound_string)
                     ubound_strings.append(ubound_string)
                 array_size = f'{array_size}*({dim_length})'
-
+                dim_lengths.append(dim_length)
+                local_names.append(local_name)
+            # end for
             # Various strings needed to get the right size
             # and lower/upper bound of the array
             dim_string = '(' + ','.join(dim_strings) + ')'
@@ -1638,7 +1644,7 @@ class Scheme(SuiteObject):
             ubound_string = '(' + ','.join(ubound_strings) + ')'
 
             # Write size check
-            # Only for types int and real
+            # - Only for types int and real.
             if (vtype == "integer") or (vtype == "real"):
                 tmp_indent = indent
                 if conditional != '.true.':
@@ -1647,8 +1653,9 @@ class Scheme(SuiteObject):
                 # end if
                 outfile.write(f"! Check size of array {local_name}", tmp_indent)
                 outfile.write(f"if (size({local_name}{dim_string}) /= {array_size}) then", tmp_indent)
-                outfile.write(f"write({errmsg}, '(a)') 'In group {self.__group.name} before {self.__subroutine_name}:'", tmp_indent+1)
-                outfile.write(f"write({errmsg}, '(2(a,i8))') 'for array {local_name}, expected size ', {array_size}, ' but got ', size({local_name})", tmp_indent+1)
+                outfile.write(f"write({errmsg}, '(2(a,i8))') 'In group {self.__group.name} before  "\
+                              f"{self.__subroutine_name}: for array {local_name}, expected size ', "\
+                              f"{array_size}, ' but got ', size({local_name})", tmp_indent+1)
                 outfile.write(f"{errcode} = 1", tmp_indent+1)
                 outfile.write(f"return", tmp_indent+1)
                 outfile.write(f"end if", tmp_indent)
@@ -1658,32 +1665,48 @@ class Scheme(SuiteObject):
                 outfile.write('',indent)
             # end if
 
-            # Write array bounds check.
-            # Assign lower/upper bounds to internal_var (scalar)
-            #  - If intent is not out
+            # Write size check for each dimension in array.
+            #  - If intent is not out.
             #  - Only for types int and real.
-            #  - Skip test for assumed-shape arrays.
-            assumed_shape = svar.get_prop_value('assumed_shape')
-            if assumed_shape:
-                lmsg = "Skipping error check for {}. Cant perfrom this check on assumed-shape Scheme arguments"
-                self.run_env.logger.info(lmsg.format(local_name))
-            elif (vtype != "integer") or (vtype != "real"):
-                lmsg = "Skipping error check for {}. Can only perform check on types real and integer, not {}"
-                self.run_env.logger.info(lmsg.format(local_name,vtype))
-            elif not intent == 'out':
-                internal_var_lname = internal_var.get_prop_value('local_name')
-                tmp_indent = indent
-                if conditional != '.true.':
-                    tmp_indent = indent + 1
-                    outfile.write(f"if {conditional} then", indent)
-                # end if
-                outfile.write(f"! Assign lower/upper bounds of {local_name} to {internal_var_lname}", tmp_indent)
-                outfile.write(f"{internal_var_lname} = {local_name}{lbound_string}", tmp_indent)
-                outfile.write(f"{internal_var_lname} = {local_name}{ubound_string}", tmp_indent)
-                if conditional != '.true.':
-                    outfile.write(f"end if", indent)
-                # end if
-                outfile.write('',indent)
+            if (vtype == "integer") or (vtype == "real"):
+                if not intent == 'out':
+                    tmp_indent = indent
+                    if conditional != '.true.':
+                        tmp_indent = indent + 1
+                        outfile.write(f"if {conditional} then", indent)
+                    # end if
+                    ndims = len(dim_lengths)
+
+                    # Loop through dimensions in var and check if length of each dimension
+                    # is the correct size. Skip for 1D variables.
+                    if (ndims > 1):
+                        for index, dim_length in enumerate(dim_lengths):
+                            array_ref = '('
+                            # Dimension(s) before current rank to be checked.
+                            array_ref += '1,'*(index)
+                            # Dimension to check.
+                            array_ref += dim_strings[index]
+                            # Dimension(s) after current rank to be checked.
+                            array_ref += ',1'*(ndims-(index+1))
+                            array_ref += ')'
+                            #
+                            outfile.write(f"! Check length of {local_names[index]}{array_ref}", tmp_indent)
+                            outfile.write(f"if (size({local_names[index]}{array_ref}) /= {dim_length}) then ",    \
+                                          tmp_indent)
+                            outfile.write(f"write({errmsg}, '(2(a,i8))') 'In group {self.__group.name} before "   \
+                                          f"{self.__subroutine_name}: for array {local_names[index]}{array_ref}, "\
+                                          f"expected size ', {dim_length}, ' but got ', "                         \
+                                          f"size({local_names[index]}{array_ref})", tmp_indent+1)
+                            outfile.write(f"{errcode} = 1", tmp_indent+1)
+                            outfile.write(f"return", tmp_indent+1)
+                            outfile.write(f"end if", tmp_indent)
+                        # end for
+                    #end if
+                    if conditional != '.true.':
+                        outfile.write(f"end if", indent)
+                    # end if
+                    outfile.write('',indent)
+                # endif
             # end if
 
     def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):

@@ -25,7 +25,7 @@ from fortran_tools import parse_fortran_file, FortranWriter
 from framework_env import parse_command_line
 from host_cap import write_host_cap
 from host_model import HostModel
-from metadata_table import parse_metadata_file, SCHEME_HEADER_TYPE
+from metadata_table import parse_metadata_file, register_ddts, SCHEME_HEADER_TYPE
 from parse_tools import init_log, set_log_level, context_string
 from parse_tools import register_fortran_ddt_name
 from parse_tools import CCPPError, ParseInternalError
@@ -45,7 +45,7 @@ _FORTRAN_FILENAME_EXTENSIONS = ['F90', 'f90', 'F', 'f']
 _EXTRA_VARIABLE_TABLE_TYPES = ['module', 'host', 'ddt']
 
 ## Metadata table types where order is significant
-_ORDERED_TABLE_TYPES = [SCHEME_HEADER_TYPE]
+_ORDERED_TABLE_TYPES = []
 
 ## CCPP Framework supported DDT types
 _CCPP_FRAMEWORK_DDT_TYPES = ["ccpp_hash_table_t",
@@ -341,6 +341,17 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
         if not list_match:
             errmsg = 'Variable mismatch in {}, variables missing from {}.'
             errors_found = add_error(errors_found, errmsg.format(title, etype))
+            if etype == "metadata header":
+                # Look for missing metadata variables
+                for fvar in flist:
+                    lname = fvar.get_prop_value('local_name')
+                    _, find = find_var_in_list(lname, mlist)
+                    if (find < 0) and (not fvar.get_prop_value('optional')):
+                        errmsg = f"Fortran variable, {lname}, not in metadata"
+                        errors_found = add_error(errors_found, errmsg)
+                    # end if
+                # end for
+            # end if
         # end if
         for mind, mvar in enumerate(mlist):
             lname = mvar.get_prop_value('local_name')
@@ -500,7 +511,8 @@ def duplicate_item_error(title, filename, itype, orig_item):
     raise CCPPError(errmsg.format(**edict))
 
 ###############################################################################
-def parse_host_model_files(host_filenames, host_name, run_env):
+def parse_host_model_files(host_filenames, host_name, run_env,
+                           known_ddts=list()):
 ###############################################################################
     """
     Gather information from host files (e.g., DDTs, registry) and
@@ -508,7 +520,6 @@ def parse_host_model_files(host_filenames, host_name, run_env):
     """
     header_dict = {}
     table_dict = {}
-    known_ddts = list()
     fort_files = list()
     mod_files = list()
     depend_files = list()
@@ -575,7 +586,8 @@ def parse_host_model_files(host_filenames, host_name, run_env):
     return host_model, fort_files, mod_files, depend_files
 
 ###############################################################################
-def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
+def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
+                       known_ddts=list()):
 ###############################################################################
     """
     Gather information from scheme files (e.g., init, run, and finalize
@@ -583,7 +595,6 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False):
     """
     table_dict = {} # Duplicate check and for dependencies processing
     header_dict = {} # To check for duplicates
-    known_ddts = list()
     fort_files = list()
     depend_files = list()
     table_names = list()
@@ -708,15 +719,20 @@ def capgen(run_env, return_db=False):
     if run_env.generate_docfiles:
         raise CCPPError("--generate-docfiles not yet supported")
     # end if
-    # First up, handle the host files
-    host_model, host_ffiles, host_mods, host_depends = parse_host_model_files(host_files, host_name, run_env)
+    # The host model may depend on suite DDTs
+    scheme_ddts = register_ddts(scheme_files)
+    # Handle the host files
+    host_model, host_ffiles, host_mods, host_depends = \
+        parse_host_model_files(host_files, host_name, run_env, known_ddts=scheme_ddts)
     # Next, parse the scheme files
     # We always need to parse the constituent DDTs
     const_prop_mod = os.path.join(src_dir, "ccpp_constituent_prop_mod.meta")
     if const_prop_mod not in scheme_files:
-        scheme_files= [const_prop_mod] + scheme_files
+        scheme_files = [const_prop_mod] + scheme_files
     # end if
-    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = parse_scheme_files(scheme_files, run_env)
+    host_ddts = register_ddts(host_files)
+    scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = \
+        parse_scheme_files(scheme_files, run_env, known_ddts=host_ddts)
     if run_env.verbose:
         ddts = host_model.ddt_lib.keys()
         if ddts:

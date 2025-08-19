@@ -169,7 +169,7 @@ def _parse_config_line(line, context):
     else:
         properties = line.strip().split('|')
         for prop in properties:
-            pitems = prop.split('=', 1)
+            pitems = [x.strip() for x in prop.split('=', 1)]
             if len(pitems) >= 2:
                 parse_items.append(pitems)
             else:
@@ -206,7 +206,7 @@ def parse_metadata_file(filename, known_ddts, run_env, skip_ddt_check=False):
                 meta_tables.append(new_table)
                 table_titles.append(ntitle)
                 if new_table.table_type == 'ddt':
-                    known_ddts.append(ntitle)
+                    known_ddts.append(ntitle.lower())
                 # end if
             else:
                 errmsg = 'Duplicate metadata table, {}, at {}:{}'
@@ -247,8 +247,8 @@ def find_scheme_names(filename):
                     props = _parse_config_line(line, context)
                     for prop in props:
                         # Look for name property
-                        key = prop[0].strip().lower()
-                        value = prop[1].strip()
+                        key = prop[0].lower()
+                        value = prop[1]
                         if key == 'name':
                             scheme_names.append(value)
                         # end if
@@ -263,6 +263,90 @@ def find_scheme_names(filename):
         # end if
     # end while
     return scheme_names
+
+########################################################################
+
+def register_ddts(file_list):
+    """Scan the metadata files in <file_list> and register all
+       DDT tables found.
+       Return a list of the DDTs type names found.
+    """
+    errors = ""
+    ddt_names = set()
+    for mfile in file_list:
+        if os.path.exists(mfile):
+            with open(mfile, 'r') as infile:
+                fin_lines = infile.readlines()
+            # end with
+            pobj = ParseObject(mfile, fin_lines)
+            in_table = False # Line number of table start
+            ddt_name = ""
+            table_is_ddt = False
+            # Search the file for ccpp-table-properties sections
+            curr_line, line_num = pobj.next_line()
+            while(curr_line is not None):
+                if in_table:
+                    # We are in a table properties sec, look for name and type
+                    if MetadataSection.header_start(curr_line) or       \
+                       MetadataTable.table_start(curr_line):
+                        # We have exited the table, record if a DDT
+                        if table_is_ddt:
+                            if ddt_name:
+                                ddt_names.add(ddt_name)
+                            else:
+                                emsg = "Unnamed CCPP metadata table"
+                                pobj.add_syntax_err(emsg)
+                            # end if
+                        # end if
+                        if MetadataTable.table_start(curr_line):
+                            in_table = line_num + 1
+                        else:
+                            in_table = False
+                        # end if
+                        ddt_name = ""
+                        table_is_ddt = False
+                    else:
+                        for prop in _parse_config_line(curr_line, context=pobj):
+                            if prop[0].lower() == 'name':
+                                ddt_name = prop[1].lower()
+                            elif prop[0].lower() == 'type':
+                                table_is_ddt = prop[1].lower() == 'ddt'
+                            # end if
+                        # end for
+                    # end if
+                elif MetadataTable.table_start(curr_line):
+                    in_table = line_num + 1
+                # end if
+                curr_line, line_num = pobj.next_line()
+            # end while
+            if pobj.error_message:
+                if errors:
+                    errors += "\n"
+                # end if
+                errors += pobj.error_message
+            # end if
+        else:
+            if errors:
+                errors += "\n"
+            # end if
+            errors += f"Metadata file, '{mfile}', not found."
+        # end if
+    # end for
+    if in_table:
+        # This is a malformed CCPP metadata file!
+        if errors:
+            errors += "\n"
+        # end if
+        errors += f"Malformed CCPP metadata file, '{mfile}'"
+    # end if
+    if errors:
+        raise CCPPError(f"{errors}")
+    else:
+        for ddt in ddt_names:
+            register_fortran_ddt_name(ddt)
+        # end for
+    # end if
+    return list(ddt_names)
 
 ########################################################################
 
@@ -380,8 +464,8 @@ class MetadataTable():
                 # Process the properties in this table header line
                 for prop in _parse_config_line(curr_line, self.__pobj):
                     # Manually parse name, type, and table properties
-                    key = prop[0].strip().lower()
-                    value = prop[1].strip()
+                    key = prop[0].lower()
+                    value = prop[1]
                     if key == 'name':
                         self.__table_name = value
                     elif key == 'type':
@@ -457,7 +541,7 @@ class MetadataTable():
             raise CCPPError(self.__pobj.error_message)
         # end if
         if self.table_type == "ddt":
-            known_ddts.append(self.table_name)
+            known_ddts.append(self.table_name.lower())
         # end if
         if self.__dependencies is None:
             self.__dependencies = []
@@ -493,7 +577,7 @@ class MetadataTable():
     @property
     def module_name(self):
         """Return the module name for this metadata table"""
-        return self.__module
+        return self.__module_name
 
     @property
     def relative_path(self):
@@ -745,8 +829,8 @@ class MetadataSection(ParseSource):
                (not MetadataTable.table_start(curr_line))):
             for prop in _parse_config_line(curr_line, self.__pobj):
                 # Manually parse name, type, and module properties
-                key = prop[0].strip().lower()
-                value = prop[1].strip()
+                key = prop[0].lower()
+                value = prop[1]
                 if key == 'name':
                     self.__section_title = value
                 elif key == 'type':
@@ -799,7 +883,7 @@ class MetadataSection(ParseSource):
                                                          self.title, start_ctx))
         # end if
         if self.header_type == "ddt":
-            known_ddts.append(self.title)
+            known_ddts.append(self.title.lower())
         # end if
         #  Initialize our ParseSource parent
         super().__init__(self.title, self.header_type, self.__pobj)
@@ -838,7 +922,7 @@ class MetadataSection(ParseSource):
                       (not MetadataTable.table_start(curr_line)))
         if valid_line:
              # variable_start handles exception
-            local_name = MetadataSection.variable_start(curr_line, self.__pobj)
+            local_name = MetadataSection.variable_start(curr_line, self.__pobj).lower()
         else:
             local_name = None
         # end if
@@ -867,15 +951,15 @@ class MetadataSection(ParseSource):
             if valid_line:
                 properties = _parse_config_line(curr_line, self.__pobj)
                 for prop in properties:
-                    pname = prop[0].strip().lower()
-                    pval_str = prop[1].strip()
+                    pname = prop[0].lower()
+                    pval_str = prop[1]
                     if ((pname == 'type') and
                         (not check_fortran_intrinsic(pval_str, error=False))):
-                        if skip_ddt_check or pval_str in known_ddts:
+                        if skip_ddt_check or pval_str.lower() in known_ddts:
                             if skip_ddt_check:
                                 register_fortran_ddt_name(pval_str)
                             # end if
-                            pval = pval_str
+                            pval = pval_str.lower()
                             pname = 'ddt_type'
                         else:
                             if registered_fortran_ddt_name(pval_str):
@@ -915,12 +999,34 @@ class MetadataSection(ParseSource):
                             pval = []
                             for dim in porig:
                                 if ':' in dim:
-                                    pval.append(dim)
+                                    for dim2 in dim.split(':'):
+                                        dim_ok = VarDictionary.loop_var_okay(standard_name=dim2,
+                                            is_run_phase=self.__section_title.endswith("_run"))
+                                        if not dim_ok:
+                                            emsg = "horizontal dimension"
+                                            self.__pobj.add_syntax_err(emsg, token=dim2)
+                                            self.__section_valid = False
+                                            var_ok = False
+                                        # end if
+                                    # end for
+                                    pval.append(dim.lower())
                                 else:
+                                    dim_ok = VarDictionary.loop_var_okay(standard_name=dim,
+                                        is_run_phase=self.__section_title.endswith("_run"))
+                                    if not dim_ok:
+                                        emsg = "horizontal dimension"
+                                        self.__pobj.add_syntax_err(emsg, token=dim)
+                                        self.__section_valid = False
+                                        var_ok = False
+                                    # end if
                                     cone_str = 'ccpp_constant_one:{}'
-                                    pval.append(cone_str.format(dim))
+                                    pval.append(cone_str.format(dim.lower()))
                                 # end if
                             # end for
+                        # end if
+                        # Special handling for standard_names (convert to lowercase)
+                        if pname == 'standard_name':
+                            pval = pval.lower()
                         # end if
                         # Add the property to our Var dictionary
                         var_props[pname] = pval
