@@ -18,7 +18,7 @@ else(KINDS)
   include(${CMAKE_CURRENT_BINARY_DIR}/../../physics/CCPP_KINDS.cmake)
   message(STATUS "Got CCPP KINDS from cmakefile include file")
 endif(KINDS)
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 #------------------------------------------------------------------------------
 # Define the executable and what to link

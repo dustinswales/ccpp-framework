@@ -959,11 +959,11 @@ class MetadataSection(ParseSource):
                             if skip_ddt_check:
                                 register_fortran_ddt_name(pval_str)
                             # end if
-                            pval = pval_str.lower()
+                            pval = pval_str
                             pname = 'ddt_type'
                         else:
                             if registered_fortran_ddt_name(pval_str):
-                                pval = pval_str
+                                pval = pval_str.lower()
                                 pname = 'ddt_type'
                             else:
                                 errmsg = "Unknown DDT type, {}".format(pval_str)
