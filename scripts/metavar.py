@@ -408,6 +408,9 @@ class Var:
         # end if
         return compat
 
+    def adjust_optional(self, src_var):
+        self._prop_dict['optional'] = True
+
     def adjust_intent(self, src_var):
         """Add an intent to this Var or adjust its existing intent.
         Note: An existing intent can only be adjusted to 'inout'
@@ -1676,6 +1679,15 @@ class VarDictionary(OrderedDict):
                                                     nlname, dintent, nctx))
                     # end if
                 # end if
+                # Check for optional argument mismatch.
+                # If a variable is optional to ANY Scheme in the Group, adjust
+                # Group definition to always as optional. 
+                vopt = cvar.get_prop_value('optional')
+                dopt = newvar.get_prop_value('optional')
+                if vopt != dopt:
+                    cvar.adjust_optional(newvar)
+                # end if
+
             else:
                 if self.__run_env.logger is not None:
                     emsg = "Attempt to add incompatible variable, {} from {}"

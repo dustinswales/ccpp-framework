@@ -146,17 +146,15 @@ class CallList(VarDictionary):
                     # Optional variables in the caps are associated with
                     # local pointers of <sname_ptr>. sname_ptr needs to use
                     # local_name in Group's call list (cldict.find_variable).
-                    if dvar.get_prop_value('optional'):
+                    if var.get_prop_value('optional'):
                         sname = dvar.get_prop_value('standard_name')
                         svar  = cldict.find_variable(standard_name=sname, any_scope=True)
-                        # Do we need this check on svar? There shouldn't be any varaibles
-                        # in the schemes that aren't in the group.
+                        #
                         var_thrd = cldict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
                         if var_thrd:
                             lname = svar.get_prop_value('local_name')+'_ptr'+'('+var_thrd.get_prop_value('local_name')+')'+'%p'
                         else:
                             lname = svar.get_prop_value('local_name')+'_ptr(1)%p'
-                        # end if
                         # end if
                     # end if
                 else:
@@ -1729,14 +1727,19 @@ class Scheme(SuiteObject):
             if (thrd_num):
                 dims = thrd_num.get_prop_value('local_name')
             # end if
-            outfile.write(f"if {conditional} then", indent)
-            outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent+1)
-            outfile.write(f"end if", indent)
+            # Scheme has optional varaible, host has varaible defined as Conditional (Active).
+            if conditional != '.true.':
+                outfile.write(f"if {conditional} then", indent)
+                outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent+1)
+                outfile.write(f"end if", indent)
+             # Scheme has optional varaible, host has varaible defined as Mandatory.
+            else:
+                outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent)
+            # end if
         # end if
 
     def nullify_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
         """Write local pointer nullification for optional variable."""
-
         # Need to use local_name in Group's call list (self.__group.call_list), not
         # the local_name in var.
         sname = var.get_prop_value('standard_name')
@@ -1755,9 +1758,15 @@ class Scheme(SuiteObject):
             if (thrd_num):
                 dims = thrd_num.get_prop_value('local_name')
             # end if
-            outfile.write(f"if {conditional} then", indent)
-            outfile.write(f"nullify({lname_ptr}({dims})%p)", indent+1)
-            outfile.write(f"end if", indent)
+            # Scheme has optional varaible, host has varaible defined as Conditional (Active).
+            if conditional != '.true.':
+                outfile.write(f"if {conditional} then", indent)
+                outfile.write(f"nullify({lname_ptr}({dims})%p)", indent+1)
+                outfile.write(f"end if", indent)
+            # Scheme has optional varaible, host has varaible defined as Mandatory.
+            else:
+                outfile.write(f"nullify({lname_ptr}({dims})%p)", indent)
+            # end if
 
     def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
         """Write local pointer assignment to variable."""
