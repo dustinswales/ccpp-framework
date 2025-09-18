@@ -1765,7 +1765,8 @@ class Scheme(SuiteObject):
                 outfile.write(f"end if", indent)
             # Scheme has optional varaible, host has varaible defined as Mandatory.
             else:
-                outfile.write(f"nullify({lname_ptr}({dims})%p)", indent)
+                outfile.write(f"{lname} = {lname_ptr}({dims})%p", indent)
+                outfile.write(f"nullify({lname_ptr}({dims})%p)",  indent)
             # end if
 
     def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
