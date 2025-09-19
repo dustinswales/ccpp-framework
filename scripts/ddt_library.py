@@ -280,9 +280,10 @@ class DDTLibrary(dict):
             # end if
             dvtype = dvar.get_prop_value('type')
             if (dvar.is_ddt()) and (dvtype in self):
-                # If DDT in our library, we need to add sub-fields recursively.
+                # If DDT in our library, we need to add sub-fields recursively,
+                # unless sub-fields already added to library previously.
                 subddt = self[dvtype]
-                self.collect_ddt_fields(var_dict, dvar, run_env, parent=var, ddt=subddt)
+                self.collect_ddt_fields(var_dict, dvar, run_env, parent=var, ddt=subddt, skip_duplicates=skip_duplicates)
             # end if
             # add_variable only checks the current dictionary. By default,
             # for a DDT, the variable also cannot be in our parent

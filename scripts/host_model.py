@@ -73,8 +73,12 @@ class HostModel(VarDictionary):
                     self.add_variable(var, run_env)
                     self.ddt_lib.check_ddt_type(var, header)
                     if var.is_ddt():
+                        # DDTs may be used more than once by the host, so
+                        # skip duplicate sub-field entries. These fields were
+                        # encountered earlier and already added to library.
                         self.ddt_lib.collect_ddt_fields(self.__ddt_dict, var,
-                                                        run_env)
+                                                        run_env,
+                                                        skip_duplicates=True)
                     # End if
                 # End for
                 loop_vars = header.variable_list(std_vars=False,
