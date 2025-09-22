@@ -28,6 +28,7 @@ from host_model import HostModel
 from metadata_table import parse_metadata_file, register_ddts, SCHEME_HEADER_TYPE
 from parse_tools import init_log, set_log_level, context_string
 from parse_tools import register_fortran_ddt_name
+from parse_tools import registered_fortran_ddt_name
 from parse_tools import CCPPError, ParseInternalError
 from ufs_depends import create_scm_build
 
@@ -287,7 +288,20 @@ def compare_fheader_to_mheader(meta_header, fort_header, logger):
     errors_found = ''
     title = meta_header.title
     mht = meta_header.header_type
-    fht = fort_header.header_type
+    # Skip comparison for registered fortran DDTs.
+    if fort_header is None:
+        if registered_fortran_ddt_name(title):
+            logger.info('Skipping fortran/metadata comparison for {}'.format(title))
+            return
+        else:
+            # We should never get here.
+            errmsg = 'No fortran header for {} of type {}'
+            ctx = meta_header.start_context()
+            raise CCPPError(errmsg.format(title, meta_header.header_type))
+        # end if
+    else:
+        fht = fort_header.header_type
+    # end if
     if mht != fht:
         # Special case, host metadata can be in a Fortran module or scheme
         if (mht != 'host') or (fht not in ('module', SCHEME_HEADER_TYPE)):
@@ -460,10 +474,13 @@ def check_fortran_against_metadata(meta_headers, fort_headers,
             # end if
         # end for
         if fheader is None:
-            tlist = '\n    '.join([x.title for x in fort_headers])
-            logger.debug("CCPP routines in {}:{}".format(ffilename, tlist))
-            errmsg = "No matching Fortran routine found for {} in {}"
-            raise CCPPError(errmsg.format(mtitle, ffilename))
+            # Exception for registerd fortran DDT.
+            if not registered_fortran_ddt_name(mtitle):
+                tlist = '\n    '.join([x.title for x in fort_headers])
+                logger.debug("CCPP routines in {}:{}".format(ffilename, tlist))
+                errmsg = "No matching Fortran routine found for {} in {}"
+                raise CCPPError(errmsg.format(mtitle, ffilename))
+            # end if
         # end if
         header_dict[mheader] = fheader
         # end if
@@ -486,7 +503,15 @@ def check_fortran_against_metadata(meta_headers, fort_headers,
     errors_found = ''
     for mheader in header_dict:
         fheader = header_dict[mheader]
-        errors_found += compare_fheader_to_mheader(mheader, fheader, logger)
+        if fheader is None:
+            # Exception for registerd fortran DDT.
+            if registered_fortran_ddt_name(mheader.title):
+                logger.info('Skipping fortran/metadata comparison for {}'.format(mheader.title))
+                return
+            # end if
+        else:
+            errors_found += compare_fheader_to_mheader(mheader, fheader, logger)
+        # end if
     # end for
     if errors_found:
         num_errors = len(re.findall(r'\n', errors_found)) + 1
@@ -539,9 +564,8 @@ def parse_host_model_files(host_filenames, host_name, run_env,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        # DJS2024: This is not working?
-        #check_fortran_against_metadata(mheaders, fheaders,
-        #                               filename, fort_file, logger)
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger)
         # Check for host dependencies (will raise error if reqired
         #                              dependency file not found)
         depends = find_dependency_files(filename, mtables)
@@ -615,11 +639,9 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-
-#        check_fortran_against_metadata(mheaders, fheaders,
-#                                       filename, fort_file, logger,
-#                                       fortran_routines=additional_routines)
-
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger,
+                                       fortran_routines=additional_routines)
         # Check for scheme dependencies (will raise error if reqired 
         #                                dependency file not found)
         depends = find_dependency_files(filename, mtables)
