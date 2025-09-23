@@ -2152,56 +2152,21 @@ class VarDictionary(OrderedDict):
             # end if
         # end while
         return newvar
-    
-def write_ptr_def(outfile, var, name, pointer_type, dvar, indent):
+
+def write_ptr_def(outfile, indent, name, kind, dimstr, vtype, extra_space=0):
     """Write the definition line for local null pointer declaration to <outfile>."""
-
-    # Get local name for number of threads and convert to string. Only if the
-    # number of threads, <dvar>, is provided by the host.
-    if dvar:
-        dims = "1:" + dvar.get_prop_value('local_name')
-    else:
-        dims = '1'
-    # end if
-
-    # Write local pointer variable definition.
     comma = ', '
-    dstr = "type({pointer_type}){comma} dimension({dims}) :: {name}"
-    outfile.write(dstr.format(pointer_type=pointer_type, comma=comma, dims=dims, name=name),indent)
-
-def write_ptr_type_def(outfile, var, name, indent):
-    """Write type defintion for local pointer."""
-
-    # Grab attributes needed for definition.
-    kind = var.get_prop_value('kind')
-    dims = var.get_dimensions()
-    if var.is_ddt():
-        vtype = 'type'
-    else:
-        vtype = var.get_prop_value('type')
-    # end if
-    if dims:
-        dimstr = '(:' + ',:'*(len(dims) - 1) + ')'
-    else:
-        dimstr = ''
-    # endif
-
-    # Write local pointer type definition.
-    dstrA = "type :: {name}"
     if kind:
-        if dims:
-            dstrB = "{type}({kind}), dimension{dimstr}, pointer :: p => null()"
-        else:
-            dstrB = "{type}({kind}), pointer :: p => null()"
-        # end if
+        dstr = "{type}({kind}){cspace}pointer          :: {name}{dims}{cspace2} => null()"
+        cspace = comma + ' '*(extra_space + 20 - len(vtype) - len(kind))
+        cspace2 = ' '*(20 -len(name) - len(dimstr))
     else:
-        dstrB = "{type}, dimension{dimstr}, pointer :: p => null()"
+        dstr = "{type}{cspace}pointer          :: {name}{dims}{cspace2} => null()"
+        cspace = comma + ' '*(extra_space + 22 - len(vtype))
+        cspace2 = ' '*(20 -len(name) - len(dimstr))
     # end if
-    dstrC = "end type {name}"
-    outfile.write(dstrA.format(name=name), indent)
-    outfile.write(dstrB.format(type=vtype, kind=kind, dimstr=dimstr), indent+1)
-    outfile.write(dstrC.format(name=name), indent)
-
+    outfile.write(dstr.format(type=vtype, kind=kind, name=name, dims=dimstr,
+                              cspace=cspace, cspace2=cspace2), indent)
     
 ###############################################################################
 
