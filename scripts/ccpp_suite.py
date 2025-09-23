@@ -674,10 +674,9 @@ class API(VarDictionary):
             func_entry = scheme_library[func_id]
             if match_trans not in func_entry:
                 func_entry[match_trans] = header
-            # DJS2024: Schemes and modules with DDTs?
-            elif header.header_type != 'module':
-                errmsg = "Duplicate scheme entry, {} {}"
-                raise CCPPError(errmsg.format(header.title,header.header_type))
+            else:
+                errmsg = "Duplicate scheme entry, {}"
+                raise CCPPError(errmsg.format(header.title))
             # end if
         # end for
         # Turn the SDF files into Suites
@@ -1165,7 +1164,7 @@ class API(VarDictionary):
                 schemes.update([x.name for x in part.schemes()])
             # end for
             # Write out the list
-            API.write_var_set_loop(ofile, 'scheme_list', sorted(schemes), 3)
+            API.write_var_set_loop(ofile, 'scheme_list', schemes, 3)
             else_str = 'else '
         # end for
         ofile.write("else", 2)
