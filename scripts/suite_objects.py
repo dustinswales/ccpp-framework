@@ -472,9 +472,6 @@ class SuiteObject(VarDictionary):
                                         gen_unique=gen_unique,
                                         adjust_intent=True)
             # We need to make sure that this variable's dimensions are available
-            # DJS2024 Asks: Isn't this only true for DEBUG mode, where the dimensions
-            # are needed for array size checks? Otherwise, there is no CCPP requirement
-            # stating that the dimensions are scheme arguments?
             for vardim in newvar.get_dim_stdnames(include_constants=False):
                 # Unnamed dimensions are ok for allocatable variables
                 if vardim == '' and newvar.get_prop_value('allocatable'):
@@ -601,7 +598,6 @@ class SuiteObject(VarDictionary):
                     dim_match = ':'.join(nloop_subst.required_stdnames)
                 # end if
             elif not self.run_phase():
-                dim_match = ndim
                 if ((hdim == 'ccpp_constant_one:horizontal_dimension') and
                     (ndim == 'ccpp_constant_one:horizontal_loop_extent')):
                     dim_match = hdim

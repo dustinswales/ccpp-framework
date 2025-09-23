@@ -290,12 +290,7 @@ def check_fortran_id(test_val, prop_dict, error, max_len=0):
     match = __FID_RE.match(test_val)
     if match is None:
         if error:
-            # DJS2025: Workaround to not report error until regular expression
-            # can be extended.
-            # -- t_soisno3d: '-nlevsnow+1' is not a valid Fortran identifier, at
-            # /scratch1/BMC/gmtb/Dustin.Swales/framework/capgen/capgen_in_scm/ccpp-scm/ccpp/physics/physics/SFC_Models/Lake/CLM/clm_lake.f90:365
-            #raise CCPPError("'{}' is not a valid Fortran identifier SWALS".format(test_val))
-            test_val = test_val
+            raise CCPPError("'{}' is not a valid Fortran identifier".format(test_val))
         else:
             test_val = None
         # end if
