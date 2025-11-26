@@ -59,9 +59,13 @@ class HostModel(VarDictionary):
                     lname = var.get_prop_value('local_name')
                     self.__var_locations[lname] = modname
                     self.ddt_lib.check_ddt_type(var, header, lname=lname)
+                    # DDTs may be used more than once by the host, so
+                    # skip duplicate sub-field entries. These fields were
+                    # encountered earlier and already added to library.
                     if var.is_ddt():
                         self.ddt_lib.collect_ddt_fields(self.__ddt_dict, var,
-                                                        run_env)
+                                                        run_env,
+                                                        skip_duplicates=True)
                     # End if
                 # End for
             elif header.header_type == 'host':
