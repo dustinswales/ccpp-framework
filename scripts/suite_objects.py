@@ -106,7 +106,7 @@ class CallList(VarDictionary):
         super().add_variable(newvar, run_env, exists_ok=exists_ok,
                              gen_unique=gen_unique, adjust_intent=adjust_intent)
 
-    def call_string(self, cldicts=None, is_func_call=False, subname=None, sub_lname_list=None):
+    def call_string(self, cldicts=None, is_func_call=False, subname=None, sub_lname_list=None, use_parents=False, ddt_lib=None):
         """Return a dummy argument string for this call list.
         <cldict> may be a list of VarDictionary objects to search for
         local_names (default is to use self).
@@ -143,6 +143,7 @@ class CallList(VarDictionary):
                         raise CCPPError(errmsg.format(stdname, clnames))
                     # end if
                     lname = dvar.get_prop_value('local_name')
+                    # endif
                     # Optional arguments in the Group caps are associated with
                     # local pointers <lname_ptr>. <lname_ptr> uses the local_name
                     # <lname> from Group's call list (cldict.find_variable).
@@ -155,6 +156,14 @@ class CallList(VarDictionary):
                     dvar = self.find_variable(standard_name=stdname,
                                                     any_scope=False)
                     cldict = None
+                    if (use_parents):
+                        lname = dvar.get_prop_value('local_name')
+                        print("   DJS: Need to grab parent DDT name for this field and add to call_string ",lname)
+                        # Search <ddt_library> for <stdname>
+                        #for ddt_def in ddt_lib:
+                        #    print("    DJS: Is ",stdname," in ",ddt_def),"?"
+                        # end for
+                    # endif
                     aref = var.array_ref(local_name=dummy)
                     if aref is not None:
                         lname = aref.group(1)
@@ -2615,7 +2624,7 @@ class Group(SuiteObject):
         # end for
         # First, write out the subroutine header
         subname = self.name
-        call_list = self.call_list.call_string()
+        call_list = self.call_list.call_string( use_parents=True, ddt_lib=self._ddt_library)
         outfile.write(Group.__subhead.format(subname=subname, args=call_list),
                       indent)
         # Write out any use statements
