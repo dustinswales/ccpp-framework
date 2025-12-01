@@ -477,7 +477,7 @@ def add_constituent_vars(cap, host_model, suite_list, run_env):
 
 ###############################################################################
 def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
-                         dyn_const=False):
+                         dyn_const=False, use_parents=False):
 ###############################################################################
     """Return the <host_model> controlled call list for <suite_part>.
     <const_dict> is the constituent dictionary"""
@@ -488,6 +488,7 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
     else:
         loop_vars = None
     # end if
+    parent_ddt_list = []
     for sp_var in spart_args:
         stdname = sp_var.get_prop_value('standard_name')
         sp_lname = sp_var.get_prop_value('local_name')
@@ -511,38 +512,19 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
             raise CCPPError(errmsg)
         # End if
         if stdname not in CCPP_CONSTANT_VARS:
-            lname = var_dict.var_call_string(hvar, loop_vars=loop_vars)
-            # DJS2025: Check to see if call_string for variable <hvar> contains any
-            # array references with a standard_name, <sname_sub>. If so, replace
-            # <hvar_sub> with full reference, <var_call_string(<hvar_sub>)>.
-            str_start = 0
-            while True:
-                dimdA = lname.find('(',str_start)
-                dimdB = lname.find(')',str_start)
-                if (dimdA > 0 and dimdB > 0):
-                    if (dimdB > dimdA):
-                        sname_sub = lname[dimdA+1:dimdB]
-                        hvar_sub  = vdict.find_variable(standard_name=sname_sub, any_scope=True)
-                        if (hvar_sub):
-                            lnameA = lname[0:dimdA+1]
-                            lnameB = lname[dimdB::]
-                            lname  = lnameA + var_dict.var_call_string(hvar_sub, loop_vars=loop_vars) + lnameB
-                        # end if
+            if (use_parents):
+                lname = var_dict.var_call_string(hvar, loop_vars=loop_vars, use_parents=use_parents)
+                if (lname not in parent_ddt_list):
+                    if (hvar.is_ddt()):
+                        hmvars.append(f"{lname}={lname}")
+                    else:
+                        hmvars.append(f"{sp_lname}={lname}")
                     # end if
-                else:
-                    break
+                    parent_ddt_list.append(lname)
                 # end if
-                str_start += dimdB+1
-            # end while
-            # Also check if {sp_lname} has an array reference to a loop varaible, if so,
-            # remove array reference from LHS call_string.
-            if stdname in CCPP_LOOP_VAR_STDNAMES:
-                dimdA = sp_lname.find('(',0)
-                if (dimdA > 0):
-                    sp_lname = sp_lname[0:dimdA]
-                # endif
-            # endif
-            hmvars.append(f"{sp_lname}={lname}")
+            else:
+                lname = var_dict.var_call_string(hvar, loop_vars=loop_vars)
+                hmvars.append(f"{sp_lname}={lname}")
             # end if
         # end if
     # End for
@@ -742,7 +724,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                         stmt = "{}if (trim(suite_part) == '{}') then"
                         cap.write(stmt.format(el2_str, pname), 3)
                         call_str = suite_part_call_list(host_model, const_dict,
-                                                        spart, True)
+                                                        spart, True, use_parents=True)
                         cap.write("call {}({})".format(spart.name, call_str), 4)
                         el2_str = 'else '
                     # End for
@@ -795,7 +777,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                 else:
                     spart = suite.phase_group(stage)
                     call_str = suite_part_call_list(host_model, const_dict,
-                                                    spart, False)
+                                                    spart, False, use_parents=True)
                     stmt = "call {}_{}({})"
                     cap.write(stmt.format(suite.name, stage, call_str), 3)
                 # End if

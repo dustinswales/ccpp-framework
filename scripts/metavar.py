@@ -676,7 +676,7 @@ class Var:
         # end if
         return dimstr
 
-    def call_string(self, var_dict, loop_vars=None):
+    def call_string(self, var_dict, loop_vars=None, use_parents=False):
         """Construct the actual argument string for this Var by translating
         standard names to local names.
         String includes array bounds unless loop_vars is None.
@@ -2115,13 +2115,13 @@ class VarDictionary(OrderedDict):
         # end if
         return my_var
 
-    def var_call_string(self, var, loop_vars=None):
+    def var_call_string(self, var, loop_vars=None, use_parents=False):
         """Construct the actual argument string for <var> by translating
         standard names to local names. String includes array bounds.
         if <loop_vars> is present, look there first for array bounds,
         even if usage requires a loop substitution.
         """
-        return var.call_string(self, loop_vars=loop_vars)
+        return var.call_string(self, loop_vars=loop_vars, use_parents=use_parents)
 
     def new_internal_variable_name(self, prefix=None, max_len=63):
         """Find a new local variable name for this dictionary.
