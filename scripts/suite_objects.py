@@ -106,7 +106,7 @@ class CallList(VarDictionary):
         super().add_variable(newvar, run_env, exists_ok=exists_ok,
                              gen_unique=gen_unique, adjust_intent=adjust_intent)
 
-    def call_string(self, cldicts=None, is_func_call=False, subname=None, sub_lname_list=None, use_parents=False, ddt_lib=None):
+    def call_string(self, cldicts=None, host_dict=None, is_func_call=False, subname=None, sub_lname_list=None, use_parents=False):
         """Return a dummy argument string for this call list.
         <cldict> may be a list of VarDictionary objects to search for
         local_names (default is to use self).
@@ -117,6 +117,8 @@ class CallList(VarDictionary):
         """
         arg_str = ""
         arg_sep = ""
+        host_var_list = []
+        host_ddt_list = []
         for var in self.variable_list():
             # Do not include constants
             stdname = var.get_prop_value('standard_name')
@@ -143,27 +145,16 @@ class CallList(VarDictionary):
                         raise CCPPError(errmsg.format(stdname, clnames))
                     # end if
                     lname = dvar.get_prop_value('local_name')
-                    # endif
                     # Optional arguments in the Group caps are associated with
                     # local pointers <lname_ptr>. <lname_ptr> uses the local_name
-                    # <lname> from Group's call list (cldict.find_variable).
+                    # <lname> as its base.
                     if var.get_prop_value('optional'):
-                        sname = dvar.get_prop_value('standard_name')
-                        svar  = cldict.find_variable(standard_name=sname, any_scope=True)
-                        lname = svar.get_prop_value('local_name')+'_ptr'
+                        lname = dvar.get_prop_value('local_name')+'_ptr'
                     # end if
                 else:
                     dvar = self.find_variable(standard_name=stdname,
                                                     any_scope=False)
                     cldict = None
-                    if (use_parents):
-                        lname = dvar.get_prop_value('local_name')
-                        print("   DJS: Need to grab parent DDT name for this field and add to call_string ",lname)
-                        # Search <ddt_library> for <stdname>
-                        #for ddt_def in ddt_lib:
-                        #    print("    DJS: Is ",stdname," in ",ddt_def),"?"
-                        # end for
-                    # endif
                     aref = var.array_ref(local_name=dummy)
                     if aref is not None:
                         lname = aref.group(1)
@@ -199,15 +190,47 @@ class CallList(VarDictionary):
                         lname = lname + vdims
                     # end if
                 # end if
-                if is_func_call:
-                    arg_str += "{}{}={}".format(arg_sep, dummy, lname)
-                else:
-                    arg_str += "{}{}".format(arg_sep, lname)
+                # Use the full name, including parent DDTs, to construct Scheme call_lists.
+                # Use the parent DDT, or host (flat) fields, to construct the Group call_lists.
+                if host_dict:
+                    hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
+                    if hvar.is_ddt():
+                        lname = host_dict.var_call_string(hvar)
+                    else:
+                        lname = var.get_prop_value('local_name')
+                    # end if
+                    if use_parents:
+                        parent = lname.split('%', 1)[0]
+                        if parent != lname and parent not in host_var_list:
+                            arg_str += f"{arg_sep}{parent}"
+                            host_var_list.append(parent)
+                            if hvar.is_ddt():
+                                host_ddt_list.append(hvar)
+                            # end if
+                        elif parent == lname and parent not in host_var_list:
+                            lname = var.get_prop_value('local_name')
+                            arg_str += f"{arg_sep}{lname}"
+                        # end if
+                    else:
+                        # Optional arguments in the Scheme call_lists are associated with
+                        # local pointers <lname_ptr>. <lname_ptr> uses the local_name
+                        # <lname> from Group's call list
+                        if var.get_prop_value('optional'):
+                            hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
+                            if hvar:
+                                lname = host_dict.var_call_string(hvar)
+                                lname = var.get_prop_value('local_name')+"_ptr"
+                        if is_func_call:
+                            arg_str += "{}{}={}".format(arg_sep, dummy, lname)
+                        else:
+                            arg_str += "{}{}".format(arg_sep, lname)
+                        # end if
+                    # end if
                 # end if
                 arg_sep = ", "
             # end if
         # end for
-        return arg_str
+        return arg_str, host_ddt_list
 
     @property
     def routine(self):
@@ -1700,18 +1723,23 @@ class Scheme(SuiteObject):
         # end if
     # end def
 
-    def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
+    def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile, host_model):
         """Write local pointer association for optional variable."""
         # Need to use local_name in Group's call list (self.__group.call_list), not
         # the local_name in var.
         sname = var.get_prop_value('standard_name') 
         svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+        hvar  = host_model.find_variable(svar.get_prop_value('standard_name'))
         if (dict_var):
             (conditional, vars_needed) = dict_var.conditional(cldicts)
             if (has_transform):
                 lname = svar.get_prop_value('local_name')+'_local'
             else:
-                lname = svar.get_prop_value('local_name')
+                if hvar:
+                    lname = host_model.var_call_string(hvar)
+                else:
+                    lname = svar.get_prop_value('local_name')
+                # end if
             # end if
             lname_ptr = svar.get_prop_value('local_name') + '_ptr'
             # Scheme has optional varaible, host has varaible defined as Conditional (Active).
@@ -1753,12 +1781,13 @@ class Scheme(SuiteObject):
         # end if
     # end def
 
-    def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile):
+    def assign_pointer_to_var(self, dict_var, var, has_transform, cldicts, indent, outfile, host_model):
         """Write local pointer assignment to variable."""
         # Need to use local_name in Group's call list (self.__group.call_list), not
         # the local_name in var.
         sname = var.get_prop_value('standard_name')
         svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+        hvar  = host_model.find_variable(svar.get_prop_value('standard_name'))
         if (dict_var):
             intent = var.get_prop_value('intent')
             if (intent == 'out' or intent == 'inout'):
@@ -1766,7 +1795,11 @@ class Scheme(SuiteObject):
                 if (has_transform):
                     lname = svar.get_prop_value('local_name') +'_local'
                 else:
-                    lname = svar.get_prop_value('local_name')
+                    if hvar:
+                        lname = host_model.var_call_string(hvar)
+                    else:
+                        lname = svar.get_prop_value('local_name')
+                    # end if
                 # end if
                 lname_ptr = svar.get_prop_value('local_name') + '_ptr'
                 if conditional != '.true.':
@@ -1899,7 +1932,7 @@ class Scheme(SuiteObject):
         # end if
         outfile.write(stmt, indent)
 
-    def write(self, outfile, errcode, errmsg, indent):
+    def write(self, outfile, host_model, errcode, errmsg, indent):
         # Unused arguments are for consistent write interface
         # pylint: disable=unused-argument
         """Write code to call this Scheme to <outfile>"""
@@ -1907,10 +1940,11 @@ class Scheme(SuiteObject):
         #    or our module
         cldicts = [self.__group, self.__group.call_list]
         cldicts.extend(self.__group.suite_dicts())
-        my_args = self.call_list.call_string(cldicts=cldicts,
-                                             is_func_call=True,
-                                             subname=self.subroutine_name,
-                                             sub_lname_list = self.__reverse_transforms)
+        my_args, __  = self.call_list.call_string(cldicts=cldicts,
+                                                  host_dict=host_model,
+                                                  is_func_call=True,
+                                                  subname=self.subroutine_name,
+                                                  sub_lname_list = self.__reverse_transforms)
         #
         outfile.write('if ({} == 0) then'.format(errcode), indent)
         #
@@ -1953,7 +1987,7 @@ class Scheme(SuiteObject):
             outfile.write('! Associate conditional variables', indent+1)
         # end if 
         for (dict_var, var, has_transform) in self.__optional_vars:
-            tstmt = self.associate_optional_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
+            tstmt = self.associate_optional_var(dict_var, var, has_transform, cldicts, indent+1, outfile, host_model)
         # end for
         #
         # Write the scheme call.
@@ -1972,7 +2006,7 @@ class Scheme(SuiteObject):
                 outfile.write('! Copy any local pointers to dummy/local variables', indent+1)
                 first_ptr_declaration=False
             # end if
-            tstmt = self.assign_pointer_to_var(dict_var, var, has_transform, cldicts, indent+1, outfile)
+            tstmt = self.assign_pointer_to_var(dict_var, var, has_transform, cldicts, indent+1, outfile, host_model)
         # end for
 
         #
@@ -2118,13 +2152,13 @@ class VerticalLoop(SuiteObject):
         # end for
         return scheme_mods
 
-    def write(self, outfile, errcode, errmsg, indent):
+    def write(self, outfile, host_model, errcode, errmsg, indent):
         """Write code for the vertical loop, including contents, to <outfile>"""
         outfile.write('do {} = 1, {}'.format(self.name, self.dimension_name),
                       indent)
         # Note that 'scheme' may be a sybcycle or other construct
         for item in self.parts:
-            item.write(outfile, errcode, errmsg, indent+1)
+            item.write(outfile, host_model, errcode, errmsg, indent+1)
         # end for
         outfile.write('end do', 2)
 
@@ -2188,12 +2222,12 @@ class Subcycle(SuiteObject):
         # end for
         return scheme_mods
 
-    def write(self, outfile, errcode, errmsg, indent):
+    def write(self, outfile, host_model, errcode, errmsg, indent):
         """Write code for the subcycle loop, including contents, to <outfile>"""
         outfile.write('do {} = 1, {}'.format(self.name, self._loop), indent)
         # Note that 'scheme' may be a sybcycle or other construct
         for item in self.parts:
-            item.write(outfile, errcode, errmsg, indent+1)
+            item.write(outfile, host_model, errcode, errmsg, indent+1)
         # end for
         outfile.write('end do', 2)
 
@@ -2232,11 +2266,11 @@ class TimeSplit(SuiteObject):
         # end for
         return scheme_mods
 
-    def write(self, outfile, errcode, errmsg, indent):
+    def write(self, outfile, host_model, errcode, errmsg, indent):
         """Write code for this TimeSplit section, including contents,
         to <outfile>"""
         for item in self.parts:
-            item.write(outfile, errcode, errmsg, indent)
+            item.write(outfile, host_model, errcode, errmsg, indent)
         # end for
 
 ###############################################################################
@@ -2261,7 +2295,7 @@ class ProcessSplit(SuiteObject):
         # Handle all the suite objects inside of this group
         raise CCPPError('ProcessSplit not yet implemented')
 
-    def write(self, outfile, errcode, errmsg, indent):
+    def write(self, outfile, host_model, errcode, errmsg, indent):
         """Write code for this ProcessSplit section, including contents,
         to <outfile>"""
         raise CCPPError('ProcessSplit not yet implemented')
@@ -2518,7 +2552,7 @@ class Group(SuiteObject):
         # end if
         return fvar
 
-    def write(self, outfile, host_arglist, indent, const_mod,
+    def write(self, outfile, host_model, host_arglist, indent, const_mod,
               suite_vars=None, allocate=False, deallocate=False):
         """Write code for this subroutine (Group), including contents,
         to <outfile>"""
@@ -2622,9 +2656,12 @@ class Group(SuiteObject):
                 # end if
             # end for
         # end for
-        # First, write out the subroutine header
+        # First, write out the subroutine header.
+        # DJS: <self.call_list> holds the full subroutine argument list. When <use_parents>, 
+        # call_string() will construct the subroutine header using only host-model DDTs, and
+        # also any host-model module variables being passed into the Caps.
         subname = self.name
-        call_list = self.call_list.call_string( use_parents=True, ddt_lib=self._ddt_library)
+        call_list, hvars = self.call_list.call_string(host_dict=host_model, use_parents=True)
         outfile.write(Group.__subhead.format(subname=subname, args=call_list),
                       indent)
         # Write out any use statements
@@ -2644,6 +2681,8 @@ class Group(SuiteObject):
             slen = ' '*(modmax - len(smod))
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
+        # DJS: ToDo Write out the host-model use statements.
+        
         # Look for any DDT types
         call_vars = self.call_list.variable_list()
         all_vars = ([x[0] for x in subpart_allocate_vars.values()] +
@@ -2660,7 +2699,7 @@ class Group(SuiteObject):
             self.run_env.logger.isEnabledFor(logging.DEBUG)):
             self.run_env.logger.debug(msg.format(self.name, call_vars))
         # end if
-        self.call_list.declare_variables(outfile, indent+1, dummy=True)
+        self.call_list.declare_variables(outfile, indent+1, dummy=True, host_dict=host_model)
         # DECLARE local variables
         if subpart_allocate_vars or subpart_scalar_vars or subpart_optional_vars:
             outfile.write('\n! Local Variables', indent+1)
@@ -2784,7 +2823,7 @@ class Group(SuiteObject):
         # end if
         # Write the scheme and subcycle calls
         for item in self.parts:
-            item.write(outfile, errcode, errmsg, indent + 1)
+            item.write(outfile, host_model, errcode, errmsg, indent + 1)
         # end for
         # Deallocate local arrays
         if allocatable_var_set:

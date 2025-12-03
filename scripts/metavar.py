@@ -1063,7 +1063,7 @@ class Var:
         return (conditional, vars_needed)
 
     def write_def(self, outfile, indent, wdict, allocatable=False, target=False,
-                  dummy=False, add_intent=None, extra_space=0, public=False):
+                  dummy=False, add_intent=None, extra_space=0, public=False, use_parents=False):
         """Write the definition line for the variable to <outfile>.
         If <dummy> is True, include the variable's intent.
         If <dummy> is True but the variable has no intent, add the
@@ -1943,15 +1943,40 @@ class VarDictionary(OrderedDict):
         return plist
 
     def declare_variables(self, outfile, indent, dummy=False,
-                          std_vars=True, loop_vars=True, consts=True):
+                          std_vars=True, loop_vars=True, consts=True,
+                          host_dict=None):
         """Write out the declarations for this dictionary's variables"""
+        host_var_list = []
         for standard_name in self.keys():
             var = self.find_variable(standard_name=standard_name,
                                      any_scope=False)
             if self.include_var_in_list(var, std_vars=std_vars,
                                         loop_vars=loop_vars, consts=consts):
-                self[standard_name].write_def(outfile, indent, self,
-                                              dummy=dummy)
+                # If host dictionary provided, use host parent Vars for declaration statements
+                if host_dict:
+                    hvar = host_dict.find_variable(standard_name)
+                    # Write Host VarDDT declaration statement
+                    if (hvar.is_ddt()):
+                        hsname = hvar.get_parent_prop('standard_name')
+                        if hsname not in host_var_list:
+                            self.write_ddt_def(outfile, indent, hvar)
+                            host_var_list.append(hsname)
+                        # end if
+                    # Write Host Var declaration statement.
+                    else:
+                        hsname = hvar.get_prop_value('standard_name')
+                        if hsname not in host_var_list:
+                            self[standard_name].write_def(outfile, indent, self,
+                                                          dummy=dummy, use_parents=True)
+                            host_var_list.append(hsname)
+                        # end if
+                    # end if
+                else:
+                    # DJS: This routine is only called when writing the Groups, which NOW always
+                    # use the host variables as arguments. Can remove this block I believe?
+                    self[standard_name].write_def(outfile, indent, self,
+                                                  dummy=dummy)
+                # end if
             # end if
         # end for
 
@@ -1960,6 +1985,16 @@ class VarDictionary(OrderedDict):
         for ovar in other_dict.variable_list():
             self.add_variable(ovar, run_env)
         # end for
+
+    # DJS: This could(?) be combined with write_def().
+    def write_ddt_def(self, outfile, indent, hvar):
+        """Write the definition line for the Host DDT variable to <outfile>.
+        Host DDTs are always defined as intent(inout) within the Caps."""
+        kind = hvar.get_parent_prop('kind')
+        name = hvar.get_parent_prop('local_name')
+        dstr = "type({kind}),intent(inout) :: {name}"
+        outfile.write(dstr.format(kind=kind, name=name), indent)
+    # end def
 
     @staticmethod
     def loop_var_okay(standard_name, is_run_phase):
