@@ -330,7 +330,7 @@ class DDTLibrary(dict):
         for ddt_mod in ddt_mods:
             dmod = ddt_mod[0]
             dtype = ddt_mod[1]
-            slen = ' '*(pad - len(dmod))
+            slen = ' '*(pad - len(dmod)-3)
             ustring = 'use {},{} only: {}'
             outfile.write(ustring.format(dmod, slen, dtype), indent)
         # end for

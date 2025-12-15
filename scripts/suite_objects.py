@@ -118,7 +118,6 @@ class CallList(VarDictionary):
         arg_str = ""
         arg_sep = ""
         host_var_list = []
-        host_ddt_list = []
         for var in self.variable_list():
             # Do not include constants
             stdname = var.get_prop_value('standard_name')
@@ -204,9 +203,6 @@ class CallList(VarDictionary):
                         if parent != lname and parent not in host_var_list:
                             arg_str += f"{arg_sep}{parent}"
                             host_var_list.append(parent)
-                            if hvar.is_ddt():
-                                host_ddt_list.append(hvar)
-                            # end if
                         elif parent == lname and parent not in host_var_list:
                             lname = var.get_prop_value('local_name')
                             arg_str += f"{arg_sep}{lname}"
@@ -230,7 +226,7 @@ class CallList(VarDictionary):
                 arg_sep = ", "
             # end if
         # end for
-        return arg_str, host_ddt_list
+        return arg_str, host_var_list
 
     @property
     def routine(self):
@@ -2681,9 +2677,19 @@ class Group(SuiteObject):
             slen = ' '*(modmax - len(smod))
             outfile.write(scheme_use.format(smod, slen, sname), indent+1)
         # end for
-        # DJS: ToDo Write out the host-model use statements.
-        
-        # Look for any DDT types
+        # Look for any Host DDT types.
+        outfile.write('! Host types', indent+1)
+        host_types=[]
+        for hvar in hvars:
+            hvar = host_model.find_variable(hvar)
+            if hvar:
+                host_types.append(hvar)
+            # end if
+        # end do
+        self._ddt_library.write_ddt_use_statements(host_types, outfile,
+                                                   indent+1, pad=modmax)
+        # Look for any Scheme DDT types
+        outfile.write('! Scheme types', indent+1)
         call_vars = self.call_list.variable_list()
         all_vars = ([x[0] for x in subpart_allocate_vars.values()] +
                      [x[0] for x in subpart_scalar_vars.values()] +
@@ -2743,16 +2749,16 @@ class Group(SuiteObject):
         if self.run_env.use_error_obj:
             raise ParseInternalError("Error object not supported")
         else:
-            verrcode = self.call_list.find_variable(standard_name='ccpp_error_code')
+            verrcode = host_model.find_variable(standard_name='ccpp_error_code')
             if verrcode is not None:
-                errcode = verrcode.get_prop_value('local_name')
+                errcode = host_model.var_call_string(verrcode)
             else:
                 errmsg = "No ccpp_error_code variable for group, {}"
                 raise CCPPError(errmsg.format(self.name))
             # end if
-            verrmsg = self.call_list.find_variable(standard_name='ccpp_error_message')
+            verrmsg = host_model.find_variable(standard_name='ccpp_error_message')
             if verrmsg is not None:
-                errmsg = verrmsg.get_prop_value('local_name')
+                errmsg = host_model.var_call_string(verrmsg)
             else:
                 errmsg = "No ccpp_error_message variable for group, {}"
                 raise CCPPError(errmsg.format(self.name))
