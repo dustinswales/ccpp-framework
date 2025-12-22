@@ -209,7 +209,7 @@ class CallList(VarDictionary):
                     else:
                         # Optional arguments in the Scheme call_lists are associated with
                         # local pointers <lname_ptr>.
-                        if var.get_prop_value('optional'):
+                        if var.get_prop_value('optional') and (len(var.get_dimensions()) > 0):
                             hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
                             if hvar:
                                 lname = dvar.get_prop_value('local_name')+"_ptr"
@@ -1309,7 +1309,8 @@ class Scheme(SuiteObject):
             # pass inactive (not present) status through the caps.
             if var.get_prop_value('optional'):
                 if dict_var:
-                    self.add_optional_var(dict_var, var, has_transform)
+                    if len(var.get_dimensions()) > 0:
+                        self.add_optional_var(dict_var, var, has_transform)
                 # end if
                 #newvar_ptr = var.clone(var.get_prop_value('local_name')+'_ptr')
                 #self.__optional_vars.append([dict_var, var, has_transform])
@@ -2601,11 +2602,11 @@ class Group(SuiteObject):
                     # end if
                 # end if
             # end for
-            # All optional dummy variables within group need to have an associated pointer
-            # array declared.
+            # All optional dummy variable arrays within group need to have an associated pointer
+            # array declared. Just arrays, not scalars.
             for cvar in self.call_list.variable_list():
                 opt_var = cvar.get_prop_value('optional')
-                if opt_var:
+                if (opt_var and len(cvar.get_dimensions()) > 0):
                     name = cvar.get_prop_value('local_name')+'_ptr'
                     kind = cvar.get_prop_value('kind')
                     dims = cvar.get_dimensions()
