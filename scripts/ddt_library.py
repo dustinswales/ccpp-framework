@@ -112,6 +112,24 @@ class VarDDT(Var):
                                                          loop_vars=loop_vars)
             # end if
         # end if
+        # Parse call string and look for any reference to standard_name in local_name.
+        # DJS: This is not as involved as the dimension parsing in Var.call_string(),
+        # which parses ALL of the dimensions in the local_name. For example, [Var(:,:,index_to_q)]
+        # Here we are only looking for single name substitutions between the brackets. For
+        # exmaple, [VarDDT(ccpp_thread_number)].
+        dimdA = call_str.find('(', 0)
+        dimdB = call_str.find(')', 0)
+        if (dimdA > 0 and dimdB > 0):
+            if (dimdB > dimdA):
+                call_str_sub = call_str[dimdA+1:dimdB]
+                hvar_sub  = var_dict.find_variable(standard_name=call_str_sub, any_scope=True)
+                if (hvar_sub):
+                    call_strA = call_str[0:dimdA+1]
+                    call_strB = call_str[dimdB::]
+                    call_str  = call_strA + var_dict.var_call_string(hvar_sub, loop_vars=loop_vars) + call_strB
+                # end if
+            # end if
+        # end if
         return call_str
 
     def write_def(self, outfile, indent, ddict, allocatable=False, target=False,
@@ -330,7 +348,7 @@ class DDTLibrary(dict):
         for ddt_mod in ddt_mods:
             dmod = ddt_mod[0]
             dtype = ddt_mod[1]
-            slen = ' '*(pad - len(dmod)-3)
+            slen = ' '*(pad - len(dmod))
             ustring = 'use {},{} only: {}'
             outfile.write(ustring.format(dmod, slen, dtype), indent)
         # end for

@@ -512,23 +512,18 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
             raise CCPPError(errmsg)
         # End if
         if stdname not in CCPP_CONSTANT_VARS:
-            if (use_parents):
-                lname = var_dict.var_call_string(hvar, loop_vars=loop_vars, use_parents=use_parents)
-                if (lname not in parent_ddt_list):
-                    if (hvar.is_ddt()):
-                        hmvars.append(f"{lname}={lname}")
-                    else:
-                        hmvars.append(f"{sp_lname}={lname}")
-                    # end if
-                    parent_ddt_list.append(lname)
+            lname = var_dict.var_call_string(hvar, loop_vars=loop_vars, use_parents=use_parents)
+            if (lname not in parent_ddt_list):
+                if (hvar.is_ddt()):
+                    hmvars.append(f"{lname}={lname}")
+                else:
+                    hmvars.append(f"{sp_lname}={lname}")
                 # end if
-            else:
-                lname = var_dict.var_call_string(hvar, loop_vars=loop_vars)
-                hmvars.append(f"{sp_lname}={lname}")
+                parent_ddt_list.append(lname)
             # end if
-        # end if
-    # End for
+        # end if    # End for
     return ', '.join(hmvars)
+
 
 ###############################################################################
 def write_host_cap(host_model, api, module_name, output_dir, run_env):
@@ -740,7 +735,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                     spart = suite.phase_group(stage)
                     dyn_const_array = suite_dynamic_constituent_array_name(host_model, suite.name)
                     call_str = suite_part_call_list(host_model, const_dict, spart, False,
-                                                                       dyn_const=True)
+                                                                       dyn_const=True, use_parents=True)
                     cap.write(f"call {suite.name}_{stage}({call_str})", 3)
                     cap.write(f"if ({errflg_name} /= 0) then", 3)
                     cap.write("return", 4)

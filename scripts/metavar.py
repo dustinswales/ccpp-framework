@@ -730,22 +730,11 @@ class Var:
                         if iname is not None:
                             lname = lname + isep + iname
                             isep = ':'
-                        # DJS2025: HACK. Check if dimension provided by host?
-                        elif item == "ccpp_chunk_number":
-                            errmsg = "SWALES: Cannot find {} in {}. Use {} instead"
-                            lname = "ccpp_cfg%chunk_no"
-                            ctx = context_string(self.context)
-                            #self.__run_env.logger.warning(errmsg.format(item,ctx,lname))
-                        elif item == "ccpp_chunk_count":
-                            errmsg = "SWALES: Cannot find {} in {}. Use {} instead"
-                            lname = "ccpp_cfg%chunk_cnt"
-                            ctx = context_string(self.context)
-                            #self.__run_env.logger.warning(errmsg.format(item,ctx,lname))
                         else:
                             errmsg = 'No local variable {} in {}{}'
                             ctx = context_string(self.context)
                             dname = var_dict.name
-                            raise CCPPError(errmsg.format(item, dname, ctx))
+                            #raise CCPPError(errmsg.format(item, dname, ctx))
                         # end if
                     # end for
                 # end if
@@ -996,7 +985,7 @@ class Var:
         # end if
         return find_vertical_dimension(vdims)[0]
 
-    def conditional(self, vdicts):
+    def conditional(self, vdicts, host_model=None):
         """Convert conditional expression from active attribute
         (i.e. in standard name format) to local names based on vdict.
         Return conditional and a list of variables needed to evaluate
@@ -1054,12 +1043,22 @@ class Var:
                             # end if
                         # end for
                     # end if
-
+                    if (host_model):
+                        hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+                        if hvar:
+                            conditional += host_model.var_call_string(hvar)
+                        else:
+                            conditional += dvar.get_prop_value('local_name')
+                        # end if
+                    # end if
                     if not dvar:
+                        print(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                         raise Exception(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                     # end if
-                    conditional += dvar.get_prop_value('local_name')
-
+                    #conditional += dvar.get_prop_value('local_name')
+                # end try
+            # end if
+        # end for
         return (conditional, vars_needed)
 
     def write_def(self, outfile, indent, wdict, allocatable=False, target=False,
@@ -1727,6 +1726,7 @@ class VarDictionary(OrderedDict):
                     # end if
                 # end if
             # end if
+
             if gen_unique and (newvar_callstr == lname):
                 new_lname = self.new_internal_variable_name(prefix=lname)
                 newvar = newvar.clone(new_lname)

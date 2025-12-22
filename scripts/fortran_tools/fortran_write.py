@@ -25,7 +25,7 @@ class FortranWriter:
 
     __CONTINUE_INDENT = 5 # Extra spaces on continuation line
 
-    __LINE_FILL = 97      # Target line length
+    __LINE_FILL = 127      # Target line length
 
     __LINE_MAX = 195      # Max line length
 
