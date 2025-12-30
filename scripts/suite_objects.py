@@ -14,7 +14,7 @@ from code_block import CodeBlock
 from constituents import ConstituentVarDict
 from framework_env import CCPPFrameworkEnv
 from metavar import Var, VarDictionary, VarLoopSubst
-from metavar import write_ptr_def
+from metavar import write_ptr_def, write_ptr_type_def
 from metavar import CCPP_CONSTANT_VARS, CCPP_LOOP_VAR_STDNAMES
 from parse_tools import ParseContext, ParseSource, context_string
 from parse_tools import ParseInternalError, CCPPError
@@ -144,11 +144,6 @@ class CallList(VarDictionary):
                         raise CCPPError(errmsg.format(stdname, clnames))
                     # end if
                     lname = dvar.get_prop_value('local_name')
-                    # Optional arguments in the Suite caps are associated with
-                    # local pointers <lname_ptr>.
-                    #if var.get_prop_value('optional'):
-                    #    lname = var.get_prop_value('local_name')+'_ptr'
-                    # end if
                 else:
                     dvar = self.find_variable(standard_name=stdname,
                                                     any_scope=False)
@@ -188,8 +183,11 @@ class CallList(VarDictionary):
                         lname = lname + vdims
                     # end if
                 # end if
-                # Use the full name, including parent DDTs, to construct Scheme call_lists.
-                # Use the parent DDT, or host (flat) fields, to construct the Group call_lists.
+                # Using <host_dict>, construct Group and Scheme call_lists.
+                # When constructing Scheme call_lists*, use full variable name (e.g. parentDDT1%var1).
+                #  *Note* Additional handling for optional variables described below.
+                # When constructing Group call_lists, only pass in the parent DDT(s), and/or host
+                # flat fields (e.g. constants). These are stored in <host_var_list>
                 if host_dict:
                     hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
                     if hvar.is_ddt():
@@ -197,6 +195,7 @@ class CallList(VarDictionary):
                     else:
                         lname = dvar.get_prop_value('local_name')
                     # end if
+                    #### Creating Group call_list ####
                     if use_parents:
                         parent = lname.split('%', 1)[0]
                         if parent != lname and parent not in host_var_list:
@@ -206,13 +205,21 @@ class CallList(VarDictionary):
                             lname = var.get_prop_value('local_name')
                             arg_str += f"{arg_sep}{lname}"
                         # end if
+                    #### Creating Schmeme call_list ####
                     else:
                         # Optional arguments in the Scheme call_lists are associated with
                         # local pointers <lname_ptr>.
                         if var.get_prop_value('optional') and (len(var.get_dimensions()) > 0):
                             hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
                             if hvar:
-                                lname = dvar.get_prop_value('local_name')+"_ptr"
+                                # If threading variables provided by the Host, insert <var_thrd> to call string.
+                                var_thrd = host_dict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                                if var_thrd:
+                                    lname = dvar.get_prop_value('local_name')+'_ptr'+'('+host_dict.var_call_string(var_thrd)+')'+'%p'
+                                # If NO threading variables provided by the Host, thread_num=thread_count=1)
+                                else:
+                                    lname = dvar.get_prop_value('local_name')+'_ptr(1)%p'
+                                # end if
                             # end if
                         # end if
                         if is_func_call:
@@ -1721,10 +1728,10 @@ class Scheme(SuiteObject):
 
     def associate_optional_var(self, dict_var, var, has_transform, cldicts, indent, outfile, host_model):
         """Write local pointer association for optional variable."""
-        # Need to use local_name in Group's call list (self.__group.call_list), not
-        # the local_name in var.
+        # Defualt is to use local_name in Scheme's call_list
         sname = var.get_prop_value('standard_name') 
         svar  = self.__group.call_list.find_variable(standard_name=sname, any_scope=False)
+        # If Host dictionary provided, use full variable name.
         hvar  = host_model.find_variable(svar.get_prop_value('standard_name'))
         if (dict_var):
             (conditional, vars_needed) = dict_var.conditional(cldicts, host_model=host_model)
@@ -1738,14 +1745,19 @@ class Scheme(SuiteObject):
                 # end if
             # end if
             lname_ptr = svar.get_prop_value('local_name') + '_ptr'
+            var_thrd = host_model.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+            dims = '1'
+            if var_thrd:
+                dims = host_model.var_call_string(var_thrd)
+            # end if
             # Scheme has optional varaible, host has varaible defined as Conditional (Active).
             if conditional != '.true.':
                 outfile.write(f"if {conditional} then", indent)
-                outfile.write(f"{lname_ptr} => {lname}", indent+1)
+                outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent+1)
                 outfile.write(f"end if", indent)
             # Scheme has optional varaible, Host has varaible defined as Mandatory.
             else:
-                outfile.write(f"{lname_ptr} => {lname}", indent)
+                outfile.write(f"{lname_ptr}({dims})%p => {lname}", indent)
             # end if
         # end if
     # end def
@@ -1769,14 +1781,19 @@ class Scheme(SuiteObject):
                 # end if
             # end if
             lname_ptr = svar.get_prop_value('local_name') + '_ptr'
+            var_thrd = host_model.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+            dims = '1'
+            if var_thrd:
+                dims = host_model.var_call_string(var_thrd)
+            # end if
             # Scheme has optional varaible, Host has varaible defined as Conditional (Active).
             if conditional != '.true.':
                 outfile.write(f"if {conditional} then", indent)
-                outfile.write(f"nullify({lname_ptr})", indent+1)
+                outfile.write(f"nullify({lname_ptr}({dims})%p)", indent+1)
                 outfile.write(f"end if", indent)
             # Scheme has optional varaible, Host has varaible defined as Mandatory.
             else:
-                outfile.write(f"nullify({lname_ptr})", indent)
+                outfile.write(f"nullify({lname_ptr}({dims})%p)", indent)
             # end if
         # end if
     # end def
@@ -1802,14 +1819,19 @@ class Scheme(SuiteObject):
                     # end if
                 # end if
                 lname_ptr = svar.get_prop_value('local_name') + '_ptr'
+                var_thrd = host_model.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                dims = '1'
+                if var_thrd:
+                    dims = host_model.var_call_string(var_thrd)
+                # end if
                 # Scheme has optional varaible, Host has varaible defined as Conditional (Active).
                 if conditional != '.true.':
                     outfile.write(f"if {conditional} then", indent)
-                    outfile.write(f"{lname} = {lname_ptr}", indent+1)
+                    outfile.write(f"{lname} = {lname_ptr}({dims})%p", indent+1)
                     outfile.write(f"end if", indent)
                 # Scheme has optional varaible, Host has varaible defined as Mandatory.
                 else:
-                    outfile.write(f"{lname} = {lname_ptr}", indent)
+                    outfile.write(f"{lname} = {lname_ptr}({dims})%p", indent)
                 # end if
             # end if
         # end if
@@ -2573,6 +2595,8 @@ class Group(SuiteObject):
         allocatable_var_set = set()
         optional_var_set = set()
         pointer_var_set = list()
+        pointer_type_set = list()
+        pointer_type_names = list()
         for item in [self]:# + self.parts:
             for var in item.declarations():
                 lname = var.get_prop_value('local_name')
@@ -2603,7 +2627,7 @@ class Group(SuiteObject):
                 # end if
             # end for
             # All optional dummy variable arrays within group need to have an associated pointer
-            # array declared. Just arrays, not scalars.
+            # array declared.
             for cvar in self.call_list.variable_list():
                 opt_var = cvar.get_prop_value('optional')
                 if (opt_var and len(cvar.get_dimensions()) > 0):
@@ -2620,7 +2644,20 @@ class Group(SuiteObject):
                     else:
                         dimstr = ''
                     # end if
-                    pointer_var_set.append([name,kind,dimstr,vtype])
+                    # Declare local DDT with same type/rank as optional variable.
+                    if vtype == 'character' and 'len=' in kind:
+                        pointer_type_name = f"{vtype}_{kind.replace('=','')}_r{len(dims)}_ptr_arr_type"
+                    elif kind:
+                        pointer_type_name = f"{vtype}_{kind}_rank{len(dims)}_ptr_arr_type"
+                    else:
+                        pointer_type_name = f"{vtype}_default_kind_rank{len(dims)}_ptr_arr_type"
+                    # end if
+                    if not pointer_type_name in pointer_type_names:
+                        pointer_type_names.append(pointer_type_name)
+                        pointer_type_set.append([pointer_type_name,cvar])
+                    # end if
+                    pointer_var_set.append([name, pointer_type_name])
+                    #pointer_var_set.append([name,kind,dimstr,vtype])
                 # end if
             # end for
             # Any arguments used in variable transforms before or after the
@@ -2683,6 +2720,13 @@ class Group(SuiteObject):
         self._ddt_library.write_ddt_use_statements(all_vars, outfile,
                                                    indent+1, pad=modmax)
         outfile.write('', 0)
+        # Pointer type declarations.
+        if pointer_type_set:
+            outfile.write('! Local type defintions', indent+1)
+        # end if
+        for (pointer_type_name, var) in pointer_type_set:
+            write_ptr_type_def(outfile, var, pointer_type_name, indent+1)
+        # end for
         # Write out dummy arguments
         outfile.write('! Dummy arguments', indent+1)
         msg = 'Variables for {}: ({})'
@@ -2726,8 +2770,8 @@ class Group(SuiteObject):
         if pointer_var_set:
             outfile.write('! Local pointer variables', indent+1)
         # end if
-        for (name, kind, dim, vtype) in pointer_var_set:
-            write_ptr_def(outfile, indent+1, name,  kind, dim, vtype)
+        for (pointer_var_name, pointer_type_name) in pointer_var_set:
+            write_ptr_def(outfile, pointer_var_name, pointer_type_name, host_model, indent+1)
         # end for
         outfile.write('', 0)
         # Get error variable names
