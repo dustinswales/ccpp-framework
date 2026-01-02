@@ -197,6 +197,7 @@ class CallList(VarDictionary):
                     # end if
                     #### Creating Group call_list ####
                     if use_parents:
+                        # Strip eldest <parent> DDT name, add to call_list, store in <host_var_list>.
                         parent = lname.split('%', 1)[0]
                         if parent != lname and parent not in host_var_list:
                             arg_str += f"{arg_sep}{parent}"
@@ -209,17 +210,16 @@ class CallList(VarDictionary):
                     else:
                         # Optional arguments in the Scheme call_lists are associated with
                         # local pointers <lname_ptr>.
-                        if var.get_prop_value('optional') and (len(var.get_dimensions()) > 0):
-                            hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
-                            if hvar:
-                                # If threading variables provided by the Host, insert <var_thrd> to call string.
-                                var_thrd = host_dict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
-                                if var_thrd:
-                                    lname = dvar.get_prop_value('local_name')+'_ptr'+'('+host_dict.var_call_string(var_thrd)+')'+'%p'
-                                # If NO threading variables provided by the Host, thread_num=thread_count=1)
-                                else:
-                                    lname = dvar.get_prop_value('local_name')+'_ptr(1)%p'
-                                # end if
+                        hvar = host_dict.find_variable(standard_name=var.get_prop_value('standard_name'),any_scope=True)
+                        # Skip creating pointer if Host always provides field (e.g. active='.true.').
+                        if var.get_prop_value('optional') and (hvar.get_prop_value('active') != '.true.'):
+                            # If threading variables provided by the Host, insert <var_thrd> to call string.
+                            var_thrd = host_dict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                            if var_thrd:
+                                lname = dvar.get_prop_value('local_name')+'_ptr'+'('+host_dict.var_call_string(var_thrd)+')'+'%p'
+                            # Otherwise, NO threading variables provided by the Host (e.g. thread_num=thread_count=1)
+                            else:
+                                lname = dvar.get_prop_value('local_name')+'_ptr(1)%p'
                             # end if
                         # end if
                         if is_func_call:
@@ -1312,15 +1312,11 @@ class Scheme(SuiteObject):
             # end if
 
             # Is this a conditionally allocated variable?
-            # If so, declare local pointer variable. This is needed to
-            # pass inactive (not present) status through the caps.
+            # If so, declare local pointer variable.
             if var.get_prop_value('optional'):
                 if dict_var:
-                    if len(var.get_dimensions()) > 0:
-                        self.add_optional_var(dict_var, var, has_transform)
+                    self.add_optional_var(dict_var, var, has_transform)
                 # end if
-                #newvar_ptr = var.clone(var.get_prop_value('local_name')+'_ptr')
-                #self.__optional_vars.append([dict_var, var, has_transform])
             # end if
 
         # end for
@@ -1338,15 +1334,15 @@ class Scheme(SuiteObject):
         """Add local pointer needed for optional variable(s) in Group Cap. Also,
         add any host variables from active condition that are needed to associate
         the local pointer correctly."""
+
         # Use Group call list and local suite dictionary.
         var_dicts = [ self.__group.call_list ] + self.__group.suite_dicts()
 
-        # We need to gather all of the variables that are part of the 'active' attribute
-        # conditional and add them to the group's call list.
-        (_, vars_needed) = dict_var.conditional(var_dicts)
-        for var_needed in vars_needed:
-            self.update_group_call_list_variable(var_needed)
-        # end for
+        # If Host always provides optional Scheme variable, no need for local pointer.
+        (conditional, vars_needed) = dict_var.conditional(var_dicts)
+        if conditional == '.true.':
+            return
+        # end if
 
         # Create new internal pointer variable, if not already created
         # previously. If necessary, the same local pointer is recylced
@@ -2590,10 +2586,8 @@ class Group(SuiteObject):
         # end if
         # Collect information on local variables
         subpart_allocate_vars = {}
-        subpart_optional_vars = {}
         subpart_scalar_vars = {}
         allocatable_var_set = set()
-        optional_var_set = set()
         pointer_var_set = list()
         pointer_type_set = list()
         pointer_type_names = list()
@@ -2601,7 +2595,7 @@ class Group(SuiteObject):
             for var in item.declarations():
                 lname = var.get_prop_value('local_name')
                 sname = var.get_prop_value('standard_name')
-                if (lname in subpart_allocate_vars) or (lname in subpart_optional_vars) or (lname in subpart_scalar_vars):
+                if (lname in subpart_allocate_vars)  or (lname in subpart_scalar_vars):
                     if subpart_allocate_vars[lname][0].compatible(var, self.run_env):
                         pass # We already are going to declare this variable
                     else:
@@ -2612,15 +2606,8 @@ class Group(SuiteObject):
                     opt_var = var.get_prop_value('optional')
                     dims = var.get_dimensions()
                     if (dims is not None) and dims:
-                        if opt_var:
-                            if (self.call_list.find_variable(standard_name=sname)):
-                                subpart_optional_vars[lname] = (var, item, opt_var)
-                                optional_var_set.add(lname)
-                            # end if
-                        else:
-                            subpart_allocate_vars[lname] = (var, item, opt_var)
-                            allocatable_var_set.add(lname)
-                        # end if
+                        subpart_allocate_vars[lname] = (var, item, opt_var)
+                        allocatable_var_set.add(lname)
                     else:
                         subpart_scalar_vars[lname] = (var, item, opt_var)
                     # end if
@@ -2630,7 +2617,7 @@ class Group(SuiteObject):
             # array declared.
             for cvar in self.call_list.variable_list():
                 opt_var = cvar.get_prop_value('optional')
-                if (opt_var and len(cvar.get_dimensions()) > 0):
+                if (opt_var):
                     name = cvar.get_prop_value('local_name')+'_ptr'
                     kind = cvar.get_prop_value('kind')
                     dims = cvar.get_dimensions()
@@ -2714,8 +2701,7 @@ class Group(SuiteObject):
         outfile.write('! Scheme types', indent+1)
         call_vars = self.call_list.variable_list()
         all_vars = ([x[0] for x in subpart_allocate_vars.values()] +
-                     [x[0] for x in subpart_scalar_vars.values()] +
-                     [x[0] for x in subpart_optional_vars.values()])
+                    [x[0] for x in subpart_scalar_vars.values()])
         all_vars.extend(call_vars)
         self._ddt_library.write_ddt_use_statements(all_vars, outfile,
                                                    indent+1, pad=modmax)
@@ -2736,7 +2722,7 @@ class Group(SuiteObject):
         # end if
         self.call_list.declare_variables(outfile, indent+1, dummy=True, host_dict=host_model)
         # DECLARE local variables
-        if subpart_allocate_vars or subpart_scalar_vars or subpart_optional_vars:
+        if subpart_allocate_vars or subpart_scalar_vars:
             outfile.write('\n! Local Variables', indent+1)
         # end if
         # Scalars
@@ -2754,15 +2740,6 @@ class Group(SuiteObject):
             target = subpart_allocate_vars[key][2]
             var.write_def(outfile, indent+1, spdict,
                           allocatable=(key in allocatable_var_set),
-                          target=target)
-        # end for
-        # Target arrays.
-        for key in subpart_optional_vars:
-            var = subpart_optional_vars[key][0]
-            spdict = subpart_optional_vars[key][1]
-            target = subpart_optional_vars[key][2]
-            var.write_def(outfile, indent+1, spdict,
-                          allocatable=(key in optional_var_set),
                           target=target)
         # end for
         # Pointer variables.
@@ -2832,12 +2809,6 @@ class Group(SuiteObject):
             alloc_str = self.allocate_dim_str(dims, var.context)
             outfile.write(alloc_stmt.format(lname, alloc_str), indent+1)
         # end for
-        for lname in optional_var_set:
-            var = subpart_optional_vars[lname][0]
-            dims = var.get_dimensions()
-            alloc_str = self.allocate_dim_str(dims, var.context)
-            outfile.write(alloc_stmt.format(lname, alloc_str), indent+1)
-        # end for
         # Allocate suite vars
         if allocate:
             if suite_vars.variable_list():
@@ -2865,9 +2836,6 @@ class Group(SuiteObject):
             outfile.write('\n! Deallocate local arrays', indent+1)
         # end if
         for lname in sorted(allocatable_var_set):
-            outfile.write('if (allocated({})) {} deallocate({})'.format(lname,' '*(20-len(lname)),lname), indent+1)
-        # end for
-        for lname in optional_var_set:
             outfile.write('if (allocated({})) {} deallocate({})'.format(lname,' '*(20-len(lname)),lname), indent+1)
         # end for
         # Deallocate suite vars
