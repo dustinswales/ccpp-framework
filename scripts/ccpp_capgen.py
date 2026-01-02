@@ -130,8 +130,8 @@ def find_dependency_files(filename,mtables):
     for mtable in mtables:
         for dependency in mtable.dependencies:
             file_root = find_file_root(filename)
-            if mtable.relative_path:
-                file_root = os.path.join(file_root, mtable.relative_path)
+            if mtable.dependencies_path:
+                file_root = os.path.join(file_root, mtable.dependencies_path)
             depend = find_associated_fortran_file(os.path.join(file_root, dependency))
             if (depend not in depends):
                 depends.append(depend)
