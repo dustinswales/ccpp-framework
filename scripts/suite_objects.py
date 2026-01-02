@@ -2621,7 +2621,7 @@ class Group(SuiteObject):
             # array declared.
             for cvar in self.call_list.variable_list():
                 opt_var = cvar.get_prop_value('optional')
-                if (opt_var):
+                if opt_var:
                     name = cvar.get_prop_value('local_name')+'_ptr'
                     kind = cvar.get_prop_value('kind')
                     dims = cvar.get_dimensions()
