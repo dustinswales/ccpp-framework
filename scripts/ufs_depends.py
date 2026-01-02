@@ -127,7 +127,7 @@ def import_ccpp_cfg(configfile, builddir):
 ################################################################################
 def create_scm_build(run_env, scheme_ffiles, host_ffiles, scheme_depends,
                      host_depends, cap_filenames, host_mods, static_api,
-                     kinds_file):
+                     kinds_file, framework_files):
     run_env.logger.info("Creating SCM/UFS build configuration")
     [success, ccpp_cfg] = import_ccpp_cfg(run_env.ccpp_cfgfile, run_env.output_dir)
 
@@ -135,7 +135,7 @@ def create_scm_build(run_env, scheme_ffiles, host_ffiles, scheme_depends,
                    ccpp_cfg['schemes_makefile'],     \
                    ccpp_cfg['schemes_cmakefile'],    \
                    ccpp_cfg['schemes_sourcefile'])
-    write_makefile("CAPS", cap_filenames,            \
+    write_makefile("CAPS", kinds_file + framework_files + cap_filenames, \
                    ccpp_cfg['caps_makefile'],        \
                    ccpp_cfg['caps_cmakefile'],       \
                    ccpp_cfg['caps_sourcefile'])

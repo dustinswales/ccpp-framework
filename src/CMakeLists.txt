@@ -3,26 +3,13 @@ include(GNUInstallDirs)
 #------------------------------------------------------------------------------
 # Set the sources
 set(SOURCES_F90
-    ccpp_types.F90
-    ccpp_hashable.F90
-    ccpp_hash_table.F90
-    ccpp_constituent_prop_mod.F90
-    ccpp_scheme_utils.F90
-)
+    ccpp_types.F90)
 
-# Set the sources: kinds file, created by capgen
-set(KINDS $ENV{CCPP_KINDS})
-if(KINDS)
-  message(STATUS "Got CCPP KINDS from environment variable")
-else(KINDS)
-  include(${CMAKE_CURRENT_BINARY_DIR}/../../physics/CCPP_KINDS.cmake)
-  message(STATUS "Got CCPP KINDS from cmakefile include file")
-endif(KINDS)
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
 #------------------------------------------------------------------------------
 # Define the executable and what to link
-add_library(ccpp_framework STATIC ${KINDS} ${SOURCES_F90})
+add_library(ccpp_framework STATIC ${SOURCES_F90})
 target_link_libraries(ccpp_framework PUBLIC MPI::MPI_Fortran)
 if(OPENMP)
   target_link_libraries(ccpp_framework PUBLIC OpenMP::OpenMP_Fortran)
