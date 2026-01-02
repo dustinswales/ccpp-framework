@@ -96,29 +96,26 @@ def delete_pathnames_from_file(capfile, logger):
     # end if
 
 ###############################################################################
-def find_associated_fortran_file(filename, fortran_source_path):
+def find_associated_fortran_file(filename):
 ###############################################################################
-    """Find the Fortran file associated with metadata file, <filename>.
-       Fortran files should be in <fortran_source_path>.
-    """
+    "Find the Fortran file associated with metadata file, <filename>"
     fort_filename = None
     lastdot = filename.rfind('.')
+    ##XXgoldyXX: Should we check to make sure <filename> ends in '.meta.'?
     if lastdot < 0:
-        base = os.path.basename(filename + '.')
+        base = filename + '.'
     else:
-        base = os.path.basename(filename[0:lastdot+1])
+        base = filename[0:lastdot+1]
     # end if
     for extension in _FORTRAN_FILENAME_EXTENSIONS:
-        test_name = os.path.join(fortran_source_path, base + extension)
+        test_name = base + extension
         if os.path.exists(test_name):
             fort_filename = test_name
             break
         # end if
     # end for
     if fort_filename is None:
-        emsg = f"Cannot find Fortran file associated with '{filename}'."
-        emsg += f"\nfortran_src_path = '{fortran_source_path}'"
-        raise CCPPError(emsg)
+        raise CCPPError("Cannot find Fortran file associated with {}".format(filename))
     # end if
     return fort_filename
 
@@ -557,8 +554,8 @@ def parse_host_model_files(host_filenames, host_name, run_env,
         logger.info('Reading host model data from {}'.format(filename))
         # parse metadata file
         mtables,mtitles = parse_metadata_file(filename, known_ddts, run_env)
-        fortran_source_path = mtables[0].fortran_source_path
-        fort_file = find_associated_fortran_file(filename, fortran_source_path)
+        #fortran_source_path = mtables[0].fortran_source_path
+        fort_file = find_associated_fortran_file(filename)
         ftables, mod_file, additional_routines = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
@@ -638,8 +635,8 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
         mtables, mtitles = parse_metadata_file(filename, known_ddts, run_env,
                                                skip_ddt_check=skip_ddt_check,
                                                relative_source_path=relative_source_path)
-        fortran_source_path = mtables[0].fortran_source_path
-        fort_file = find_associated_fortran_file(filename, fortran_source_path)
+        #fortran_source_path = mtables[0].fortran_source_path
+        fort_file = find_associated_fortran_file(filename)
         ftables, mod_file, additional_routines = parse_fortran_file(fort_file, run_env)
         # Check Fortran against metadata (will raise an exception on error)
         mheaders = list()
