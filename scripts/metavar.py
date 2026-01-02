@@ -262,7 +262,7 @@ class Var:
     # All constituent props are optional so no check
 
     def __init__(self, prop_dict, source, run_env, context=None,
-                 clone_source=None):
+                 clone_source=None, fortran_imports=None):
         """Initialize a new Var object.
         If <prop_dict> is really a Var object, use that object's prop_dict.
         If this Var object is a clone, record the original Var object
@@ -349,17 +349,6 @@ class Var:
         # end for
         # Steal dict from caller
         self._prop_dict = prop_dict
-# XXgoldyXX: v don't fill in default properties?
-#        # Fill in default values for missing properties
-#        for propname in mstr_propdict:
-#            if (propname not in prop_dict) and mstr_propdict[propname].optional:
-#                mval = mstr_propdict[propname]
-#                def_val = mval.get_default_val(self._prop_dict,
-#                                               context=self.context)
-#                self._prop_dict[propname] = def_val
-#            # end if
-#        # end for
-# XXgoldyXX: ^ don't fill in default properties?
         # Make sure all the variable values are valid
         try:
             for prop_name, prop_val in self.var_properties():
@@ -368,10 +357,14 @@ class Var:
                                      prop_dict=self._prop_dict, error=True)
             # end for
         except CCPPError as cperr:
-            lname = self._prop_dict['local_name']
-            emsg = "{}: {}"
-            raise ParseSyntaxError(emsg.format(lname, cperr),
-                                   context=self.context) from cperr
+            # Raise this error unless it represents an imported DDT type
+            if ((not fortran_imports) or (prop_name != 'type') or
+                (prop_val not in fortran_imports)):
+                lname = self._prop_dict['local_name']
+                emsg = "{}: {}"
+                raise ParseSyntaxError(emsg.format(lname, cperr),
+                                       context=self.context) from cperr
+            # end if
         # end try
 
     def compatible(self, other, run_env, is_tend=False):
@@ -1201,7 +1194,7 @@ class FortranVar(Var):
                                         optional_in=True, default_in=False)]
 
     def __init__(self, prop_dict, source, run_env, context=None,
-                 clone_source=None):
+                 clone_source=None, fortran_imports=None):
         """Initialize a FortranVar object.
         """
 
@@ -1215,7 +1208,8 @@ class FortranVar(Var):
         # end for
         # Initialize Var
         super().__init__(prop_dict, source, run_env, context=context,
-                         clone_source=clone_source)
+                         clone_source=clone_source,
+                         fortran_imports=fortran_imports)
         # Now, restore the saved properties
         for prop in save_dict:
             self._prop_dict[prop] = save_dict[prop]
@@ -1753,12 +1747,15 @@ class VarDictionary(OrderedDict):
             del self[standard_name]
         # end if
 
-    def add_variable_dimensions(self, var, ignore_sources, to_dict=None,
-                                adjust_intent=False):
+    def add_variable_dimensions(self, var, ignore_sources, suite_type,
+                                to_dict=None, adjust_intent=False):
         """Attempt to find a source for each dimension in <var> and add that
         Variable to this dictionary or to <to_dict>, if passed.
         Dimension variables which are found but whose Source is in
         <ignore_sources> are not added to this dictionary.
+        Dimension variabes which are found at the suite level (determined
+        by <suite_type>) are also not added to this dictionary because
+        module-level suite variables are accessible by any phase.
         Return an error string on failure."""
 
         err_ret = ''
@@ -1777,6 +1774,11 @@ class VarDictionary(OrderedDict):
             # end if
             if not present:
                 dvar = self.find_variable(standard_name=dimname, any_scope=True)
+                if dvar and dvar.source.ptype == suite_type:
+                    # Do nothing - this is a module-level variable so we don't
+                    # need to add it to any dictionaries
+                    return
+                # end if
                 if dvar and (dvar.source.ptype not in ignore_sources):
                     if to_dict:
                         to_dict.add_variable(dvar, self.__run_env,
