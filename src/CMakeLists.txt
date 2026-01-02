@@ -3,7 +3,8 @@ include(GNUInstallDirs)
 #------------------------------------------------------------------------------
 # Set the sources
 set(SOURCES_F90
-    ccpp_types.F90)
+    ccpp_types.F90
+)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
 
