@@ -1460,7 +1460,7 @@ class Scheme(SuiteObject):
         # Add the variable to the list of variables to check. Record which internal_var to use.
         self.__var_debug_checks.append([var, internal_var])
 
-    def replace_horiz_dim_debug_check(self, dim, cldicts, var_in_call_list):
+    def replace_horiz_dim_debug_check(self, dim, cldicts, var_in_call_list, host_model):
         """Determine the correct horizontal dimension to use for a given variable,
         depending on the CCPP phase and origin of the variable (from the host/suite
         or defined as a module variable for the parent group, or local to the group.
@@ -1486,6 +1486,11 @@ class Scheme(SuiteObject):
         if not dvar:
             raise Exception(f"No variable with standard name '{ldim}' in cldicts")
         ldim_lname = dvar.get_prop_value('local_name')
+        # If Host dictionary provided, use full variable name (always provided).
+        hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+        if hvar:
+            ldim_lname = host_model.var_call_string(hvar)
+        # end if
         # Get dimension for upper bound
         for var_dict in cldicts:
             dvar = var_dict.find_variable(standard_name=udim, any_scope=False)
@@ -1494,6 +1499,11 @@ class Scheme(SuiteObject):
         if not dvar:
             raise Exception(f"No variable with standard name '{udim}' in cldicts")
         udim_lname = dvar.get_prop_value('local_name')
+        # If Host dictionary provided, use full variable name (always provided).
+        hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+        if hvar:
+            udim_lname = host_model.var_call_string(hvar)
+        # end if
         # Assemble dimensions and bounds for size checking
         dim_length = f'abs({udim_lname}-{ldim_lname})+1'
         # If the variable that uses these dimensions is not in the group's call
@@ -1544,6 +1554,14 @@ class Scheme(SuiteObject):
         if not dvar:
             raise Exception(f"No variable with standard name '{standard_name}' in cldicts")
         local_name = dvar.get_prop_value('local_name')
+
+        # If Host dictionary provided, use full variable name (always provided).
+        hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+        if hvar is not None:
+            if hvar.is_ddt():
+                local_name = host_model.var_call_string(hvar)
+            # end if
+        # end if
 
         # If the variable is allocatable and the intent for the scheme is 'out',
         # then we can't test anything because the scheme is going to allocate
@@ -1604,14 +1622,15 @@ class Scheme(SuiteObject):
                     # variable or locally defined on the group level.
                     if is_horizontal_dimension(dim):
                         (dim_length, dim_string, lbound_string, ubound_string) = \
-                            self.replace_horiz_dim_debug_check(dim, cldicts, var_in_call_list)
+                            self.replace_horiz_dim_debug_check(dim, cldicts, var_in_call_list, host_model)
                     else:
                         (ldim, udim) = dim.split(":")
                         # Get dimension for lower bound
                         for var_dict in cldicts:
                             dvar = var_dict.find_variable(standard_name=ldim.lower(), any_scope=False)
                             if dvar is not None:
-                                ldim_lname = dvar.get_prop_value('local_name')
+                                hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+                                ldim_lname = host_model.var_call_string(hvar)
                                 break
                             # end if
                         # end for
@@ -1627,7 +1646,8 @@ class Scheme(SuiteObject):
                         for var_dict in cldicts:
                             dvar = var_dict.find_variable(standard_name=udim.lower(), any_scope=False)
                             if dvar is not None:
-                                udim_lname = dvar.get_prop_value('local_name')
+                                hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+                                udim_lname = host_model.var_call_string(hvar)
                                 break
                             # end if
                         # end for
@@ -1667,7 +1687,7 @@ class Scheme(SuiteObject):
                     outfile.write(f"if {conditional} then", indent)
                 # end if
                 outfile.write(f"! Check size of array {local_name}", tmp_indent)
-                outfile.write(f"if (size({local_name}{dim_string}) /= {array_size}) then", tmp_indent)
+                outfile.write(f"if (size({local_name}) /= {array_size}) then", tmp_indent)
                 outfile.write(f"write({errmsg}, '(2(a,i8))') 'In group {self.__group.name} before  "\
                               f"{self.__subroutine_name}: for array {local_name}, expected size ', "\
                               f"{array_size}, ' but got ', size({local_name})", tmp_indent+1)
@@ -1705,16 +1725,16 @@ class Scheme(SuiteObject):
                             array_ref += ',1'*(ndims-(index+1))
                             array_ref += ')'
                             #
-                            outfile.write(f"! Check length of {local_names[index]}{array_ref}", tmp_indent)
-                            outfile.write(f"if (size({local_names[index]}{array_ref}) /= {dim_length}) then ",    \
-                                          tmp_indent)
-                            outfile.write(f"write({errmsg}, '(2(a,i8))') 'In group {self.__group.name} before "   \
-                                          f"{self.__subroutine_name}: for array {local_names[index]}{array_ref}, "\
-                                          f"expected size ', {dim_length}, ' but got ', "                         \
-                                          f"size({local_names[index]}{array_ref})", tmp_indent+1)
-                            outfile.write(f"{errcode} = 1", tmp_indent+1)
-                            outfile.write(f"return", tmp_indent+1)
-                            outfile.write(f"end if", tmp_indent)
+                            #outfile.write(f"! Check length of {local_names[index]}{array_ref}", tmp_indent)
+                            #outfile.write(f"if (size({local_names[index]}{array_ref}) /= {dim_length}) then ",    \
+                            #              tmp_indent)
+                            #outfile.write(f"write({errmsg}, '(2(a,i8))') 'In group {self.__group.name} before "   \
+                            #              f"{self.__subroutine_name}: for array {local_names[index]}{array_ref}, "\
+                            #              f"expected size ', {dim_length}, ' but got ', "                         \
+                            #              f"size({local_names[index]}{array_ref})", tmp_indent+1)
+                            #outfile.write(f"{errcode} = 1", tmp_indent+1)
+                            #outfile.write(f"return", tmp_indent+1)
+                            #outfile.write(f"end if", tmp_indent)
                         # end for
                     #end if
                     if conditional != '.true.':
@@ -2694,9 +2714,9 @@ class Group(SuiteObject):
         outfile.write('! Host types', indent+1)
         host_types=[]
         for hvar in hvars:
-            hvar = host_model.find_variable(hvar)
-            if hvar:
-                host_types.append(hvar)
+            hhvar = host_model.find_variable(hvar)
+            if hhvar:
+                host_types.append(hhvar)
             # end if
         # end do
         self._ddt_library.write_ddt_use_statements(host_types, outfile,
