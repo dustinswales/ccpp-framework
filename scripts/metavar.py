@@ -1955,20 +1955,40 @@ class VarDictionary(OrderedDict):
                 # If host dictionary provided, use host parent Vars for declaration statements
                 if host_dict:
                     hvar = host_dict.find_variable(standard_name)
-                    # Write Host VarDDT declaration statement
-                    if (hvar.is_ddt()):
-                        hsname = hvar.get_parent_prop('standard_name')
-                        if hsname not in host_var_list:
-                            self.write_ddt_def(outfile, indent, hvar)
-                            host_var_list.append(hsname)
-                        # end if
-                    # Write Host Var declaration statement.
-                    else:
-                        hsname = hvar.get_prop_value('standard_name')
-                        if hsname not in host_var_list:
-                            self[standard_name].write_def(outfile, indent, self,
-                                                          dummy=dummy, use_parents=True)
-                            host_var_list.append(hsname)
+                    if (hvar is not None):
+                        # Write Host VarDDT declaration statement
+                        try:
+                            hsname = hvar.get_parent_prop('standard_name')
+                            if hsname not in host_var_list:
+                                self.write_ddt_def(outfile, indent, hvar)
+                                host_var_list.append(hsname)
+                            # end if
+                        # Write Host Var declaration statement.
+                        except:
+                            hsname = hvar.get_prop_value('standard_name')
+                            if hsname not in host_var_list:
+                                self[standard_name].write_def(outfile, indent, self,
+                                                              dummy=dummy, use_parents=True)
+                                host_var_list.append(hsname)
+                            # end if
+                        # end try
+#                        if (hvar.is_ddt()):
+#                            print("SWALES hvar   = ",hvar)
+#                            print("SWALES is_ddt = ",hvar.is_ddt())
+#                            print("SWALES parent = ",self.parent)
+#                            hsname = hvar.get_parent_prop('standard_name')
+#                            if hsname not in host_var_list:
+#                                self.write_ddt_def(outfile, indent, hvar)
+#                                host_var_list.append(hsname)
+#                            # end if
+#                        # Write Host Var declaration statement.
+#                        else:
+#                            hsname = hvar.get_prop_value('standard_name')
+#                            if hsname not in host_var_list:
+#                                self[standard_name].write_def(outfile, indent, self,
+#                                                              dummy=dummy, use_parents=True)
+#                                host_var_list.append(hsname)
+#                            # end if
                         # end if
                     # end if
                 else:

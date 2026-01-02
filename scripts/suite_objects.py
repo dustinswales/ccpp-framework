@@ -190,10 +190,12 @@ class CallList(VarDictionary):
                 # flat fields (e.g. constants). These are stored in <host_var_list>
                 if host_dict:
                     hvar = host_dict.find_variable(var.get_prop_value('standard_name'))
-                    if hvar.is_ddt():
-                        lname = host_dict.var_call_string(hvar)
-                    else:
-                        lname = dvar.get_prop_value('local_name')
+                    if hvar is not None:
+                        if hvar.is_ddt():
+                            lname = host_dict.var_call_string(hvar)
+                        else:
+                            lname = dvar.get_prop_value('local_name')
+                        # end if
                     # end if
                     #### Creating Group call_list ####
                     if use_parents:
@@ -212,14 +214,16 @@ class CallList(VarDictionary):
                         # local pointers <lname_ptr>.
                         hvar = host_dict.find_variable(standard_name=var.get_prop_value('standard_name'),any_scope=True)
                         # Skip creating pointer if Host always provides field (e.g. active='.true.').
-                        if var.get_prop_value('optional') and (hvar.get_prop_value('active') != '.true.'):
-                            # If threading variables provided by the Host, insert <var_thrd> to call string.
-                            var_thrd = host_dict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
-                            if var_thrd:
-                                lname = dvar.get_prop_value('local_name')+'_ptr'+'('+host_dict.var_call_string(var_thrd)+')'+'%p'
-                            # Otherwise, NO threading variables provided by the Host (e.g. thread_num=thread_count=1)
-                            else:
-                                lname = dvar.get_prop_value('local_name')+'_ptr(1)%p'
+                        if hvar:
+                            if var.get_prop_value('optional') and (hvar.get_prop_value('active') != '.true.'):
+                                # If threading variables provided by the Host, insert <var_thrd> to call string.
+                                var_thrd = host_dict.find_variable(standard_name='ccpp_thread_number',any_scope=True)
+                                if var_thrd:
+                                    lname = dvar.get_prop_value('local_name')+'_ptr'+'('+host_dict.var_call_string(var_thrd)+')'+'%p'
+                                # Otherwise, NO threading variables provided by the Host (e.g. thread_num=thread_count=1)
+                                else:
+                                    lname = dvar.get_prop_value('local_name')+'_ptr(1)%p'
+                                # end if
                             # end if
                         # end if
                         if is_func_call:
