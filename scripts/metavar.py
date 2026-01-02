@@ -1022,27 +1022,15 @@ class Var:
                     conditional += item
                 except ValueError:
                     dvar = None
-                    # DJS2024: First, check if any schemes in the group have this
+                    # First, check if any schemes in the group have this
                     # variable as an argument. If so, no need to add to list of 
                     # varaibles needed, vars_needed.
                     for vdict in vdicts:
-                        dvar = vdict.find_variable(standard_name=item, any_scope=False)
+                        dvar = vdict.find_variable(standard_name=item, any_scope=True)
                         if dvar:
                             break
                         # end if
                     # end for
-                    # DJS2024: If varaible is not requested by a scheme in this group, but
-                    # is needed for optional variable quiering, add to list <vars_needed>
-                    # of varaibles needed, vars_needed.
-                    if not dvar:
-                        for vdict in vdicts:
-                            dvar = vdict.find_variable(standard_name=item, any_scope=True)
-                            if dvar:
-                                vars_needed.append(dvar)
-                                break
-                            # end if
-                        # end for
-                    # end if
                     if (host_model):
                         hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
                         if hvar:
@@ -1055,7 +1043,6 @@ class Var:
                         print(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                         raise Exception(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                     # end if
-                    #conditional += dvar.get_prop_value('local_name')
                 # end try
             # end if
         # end for
@@ -1972,24 +1959,6 @@ class VarDictionary(OrderedDict):
                                 host_var_list.append(hsname)
                             # end if
                         # end try
-#                        if (hvar.is_ddt()):
-#                            print("SWALES hvar   = ",hvar)
-#                            print("SWALES is_ddt = ",hvar.is_ddt())
-#                            print("SWALES parent = ",self.parent)
-#                            hsname = hvar.get_parent_prop('standard_name')
-#                            if hsname not in host_var_list:
-#                                self.write_ddt_def(outfile, indent, hvar)
-#                                host_var_list.append(hsname)
-#                            # end if
-#                        # Write Host Var declaration statement.
-#                        else:
-#                            hsname = hvar.get_prop_value('standard_name')
-#                            if hsname not in host_var_list:
-#                                self[standard_name].write_def(outfile, indent, self,
-#                                                              dummy=dummy, use_parents=True)
-#                                host_var_list.append(hsname)
-#                            # end if
-                        # end if
                     # end if
                 else:
                     # DJS: This routine is only called when writing the Groups, which NOW always
