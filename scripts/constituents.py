@@ -48,7 +48,8 @@ class ConstituentVarDict(VarDictionary):
 
     def find_variable(self, standard_name=None, source_var=None,
                       any_scope=True, clone=None,
-                      search_call_list=False, loop_subst=False):
+                      search_call_list=False, loop_subst=False,
+                      check_components=True):
         """Attempt to return the variable matching <standard_name>.
         if <standard_name> is None, the standard name from <source_var> is used.
         It is an error to pass both <standard_name> and <source_var> if
@@ -86,7 +87,8 @@ class ConstituentVarDict(VarDictionary):
                                             source_var=source_var,
                                             any_scope=any_scope, clone=None,
                                             search_call_list=srch_clist,
-                                            loop_subst=loop_subst)
+                                            loop_subst=loop_subst,
+                                            check_components=check_components)
         else:
             var = None
         # end if
@@ -300,6 +302,7 @@ class ConstituentVarDict(VarDictionary):
             # end if
             outfile.write("index = index + 1", indent+1)
             long_name = var.get_prop_value('long_name')
+            diag_name = var.get_prop_value('diagnostic_name')
             units = var.get_prop_value('units')
             dims = var.get_dim_stdnames()
             default_value = var.get_prop_value('default_value')
@@ -311,7 +314,7 @@ class ConstituentVarDict(VarDictionary):
                 vertical_dim = ''
             # end if
             advect_str = self.TF_string(var.get_prop_value('advected'))
-            init_args = [f'{std_name=}', f'{long_name=}',
+            init_args = [f'{std_name=}', f'{long_name=}', f'{diag_name=}',
                          f'{units=}', f'{vertical_dim=}',
                          f'advected={advect_str}',
                          f'errcode={errvar_names["ccpp_error_code"]}',

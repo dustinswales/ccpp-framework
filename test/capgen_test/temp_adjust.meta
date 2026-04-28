@@ -1,7 +1,8 @@
 [ccpp-table-properties]
   name = temp_adjust
   type = scheme
-  dependencies = qux.F90
+  kind_spec = temp_kinds:kind_temp=>temp_r8
+  dependencies = qux.F90, temp_kinds.F90
   dependencies_path = adjust
 [ccpp-arg-table]
   name = temp_adjust_register
@@ -53,14 +54,14 @@
 [ temp_prev ]
   standard_name = potential_temperature_at_previous_timestep
   units = K
-  dimensions = (horizontal_loop_extent)
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   type = real
   kind = kind_phys
   intent = in
 [ temp_layer ]
   standard_name = potential_temperature
   units = K
-  dimensions = (horizontal_loop_extent)
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   type = real
   kind = kind_phys
   intent = inout
@@ -68,7 +69,7 @@
 [ qv ]
   standard_name = water_vapor_specific_humidity
   units = kg kg-1
-  dimensions = (horizontal_loop_extent)
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   type = real
   kind = kind_phys
   intent = inout
@@ -85,9 +86,9 @@
 [ to_promote ]
   standard_name = promote_this_variable_to_suite
   units = K
-  dimensions = (horizontal_loop_extent)
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   type = real
-  kind = kind_phys
+  kind = kind_temp
   intent = in
 [ promote_pcnst ]
   standard_name = promote_this_variable_with_no_horizontal_dimension

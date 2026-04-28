@@ -26,7 +26,7 @@ from parse_tools import ParseInternalError, ParseSyntaxError, CCPPError
 from parse_tools import FORTRAN_CONDITIONAL_REGEX_WORDS, FORTRAN_CONDITIONAL_REGEX
 from var_props import CCPP_LOOP_DIM_SUBSTS, VariableProperty, VarCompatObj
 from var_props import find_horizontal_dimension, find_vertical_dimension
-from var_props import standard_name_to_long_name, default_kind_val
+from var_props import standard_name_to_long_name, local_name_to_diag_name, default_kind_val
 
 ##############################################################################
 
@@ -174,6 +174,9 @@ class Var:
                                      check_fn_in=check_cf_standard_name),
                     VariableProperty('long_name', str, optional_in=True,
                                      default_fn_in=standard_name_to_long_name),
+                    VariableProperty('diagnostic_name', str, optional_in=True,
+                                     default_fn_in=local_name_to_diag_name,
+                                     check_fn_in=check_diagnostic_id),
                     VariableProperty('units', str,
                                      check_fn_in=check_units),
                     VariableProperty('dimensions', list,
@@ -189,9 +192,6 @@ class Var:
                                      optional_in=True, default_in=False),
                     VariableProperty('allocatable', bool,
                                      optional_in=True, default_in=False),
-                    VariableProperty('diagnostic_name', str,
-                                     optional_in=True, default_in='',
-                                     check_fn_in=check_diagnostic_id),
                     VariableProperty('diagnostic_name_fixed', str,
                                      optional_in=True, default_in='',
                                      check_fn_in=check_diagnostic_fixed),
@@ -261,7 +261,7 @@ class Var:
     __var_propdict.update({p.name : p for p in __constituent_props})
     # All constituent props are optional so no check
 
-    def __init__(self, prop_dict, source, run_env, context=None,
+    def __init__(self, prop_dict, source, run_env, is_ddt=False, components=None, context=None,
                  clone_source=None, fortran_imports=None):
         """Initialize a new Var object.
         If <prop_dict> is really a Var object, use that object's prop_dict.
@@ -275,6 +275,11 @@ class Var:
         """
         self.__parent_var = None # for array references
         self.__children = list() # This Var's array references
+        if components:
+            self.__components = components
+        else:
+            self.__components = list() # This Var's DDT components
+        # end if
         self.__clone_source = clone_source
         self.__run_env = run_env
         if isinstance(prop_dict, Var):
@@ -314,6 +319,9 @@ class Var:
             self.__intrinsic = False
         else:
             self.__intrinsic = True
+        # end if
+        if is_ddt:
+            self.__intrinsic = False
         # end if
         for key in prop_dict:
             if Var.get_prop(key) is None:
@@ -367,26 +375,44 @@ class Var:
             # end if
         # end try
 
-    def compatible(self, other, run_env, is_tend=False):
+    def compatible(self, other, run_env, is_tend=False, is_host_var=False):
         """Return a VarCompatObj object which describes the equivalence,
         compatibility, or incompatibility between <self> and <other>.
+        If <host_var>, reverse the variable properties.
         """
         # We accept character(len=*) as compatible with
         # character(len=INTEGER_VALUE)
-        stype = self.get_prop_value('type')
-        skind = self.get_prop_value('kind')
-        sunits = self.get_prop_value('units')
-        sstd_name = self.get_prop_value('standard_name')
-        sloc_name = self.get_prop_value('local_name')
-        stopp = self.get_prop_value('top_at_one')
-        sdims = self.get_dimensions()
-        otype = other.get_prop_value('type')
-        okind = other.get_prop_value('kind')
-        ounits = other.get_prop_value('units')
-        ostd_name = other.get_prop_value('standard_name')
-        oloc_name = other.get_prop_value('local_name')
-        otopp = other.get_prop_value('top_at_one')
-        odims = other.get_dimensions()
+        if not is_host_var:
+            stype = self.get_prop_value('type')
+            skind = self.get_prop_value('kind')
+            sstd_name = self.get_prop_value('standard_name')
+            sloc_name = self.get_prop_value('local_name')
+            stopp = self.get_prop_value('top_at_one')
+            sdims = self.get_dimensions()
+            sunits = self.get_prop_value('units')
+            otype = other.get_prop_value('type')
+            okind = other.get_prop_value('kind')
+            ostd_name = other.get_prop_value('standard_name')
+            oloc_name = other.get_prop_value('local_name')
+            otopp = other.get_prop_value('top_at_one')
+            odims = other.get_dimensions()
+            ounits = other.get_prop_value('units')
+        else:
+            otype = self.get_prop_value('type')
+            okind = self.get_prop_value('kind')
+            ostd_name = self.get_prop_value('standard_name')
+            oloc_name = self.get_prop_value('local_name')
+            otopp = self.get_prop_value('top_at_one')
+            odims = self.get_dimensions()
+            ounits = self.get_prop_value('units')
+            stype = other.get_prop_value('type')
+            skind = other.get_prop_value('kind')
+            sstd_name = other.get_prop_value('standard_name')
+            sloc_name = other.get_prop_value('local_name')
+            stopp = other.get_prop_value('top_at_one')
+            sdims = other.get_dimensions()
+            sunits = other.get_prop_value('units')
+        # end if
         compat = VarCompatObj(sstd_name, stype, skind, sunits, sdims, sloc_name, stopp,
                               ostd_name, otype, okind, ounits, odims, oloc_name, otopp,
                               run_env,
@@ -502,7 +528,7 @@ class Var:
         # end if
         psource = ParseSource(source_name, source_type, context)
 
-        return Var(cprop_dict, psource, self.run_env, clone_source=self)
+        return Var(cprop_dict, psource, self.run_env, is_ddt=self.is_ddt(), components=self.components, clone_source=self)
 
     def get_prop_value(self, name):
         """Return the value of key, <name> if <name> is in this variable's
@@ -669,16 +695,27 @@ class Var:
         # end if
         return dimstr
 
-    def call_string(self, var_dict, loop_vars=None, use_parents=False):
+    def call_string(self, var_dicts, loop_vars=None):
         """Construct the actual argument string for this Var by translating
         standard names to local names.
         String includes array bounds unless loop_vars is None.
         if <loop_vars> is not None, look there first for array bounds,
         even if usage requires a loop substitution.
         """
+        # DH*
+        if loop_vars:
+            raise Exception(f"DH DEBUG: WE DO USE loop_vars in call_string! '{loop_vars}'")
+        # *DH
+        if not isinstance(var_dicts, list):
+           var_dicts = [var_dicts]
+        # end if
         if loop_vars is None:
             call_str = self.get_prop_value('local_name')
             # Look for dims in case this is an array selection variable
+            # DH*
+            # Will this work with something like ddt1(some_index)%nested_ddt(other_index)%myvar(dimstring)?
+            # Is local_name guaranteed to be just the member of the innermost DDT?
+            # Better to use split_dims_from_name ...
             dind = call_str.find('(')
             if dind > 0:
                 dimstr = call_str[dind+1:].rstrip()[:-1]
@@ -687,6 +724,7 @@ class Var:
             else:
                 dims = None
             # end if
+            # *DH
         else:
             call_str, dims = self.handle_array_ref()
         # end if
@@ -704,8 +742,15 @@ class Var:
                     lname = ""
                     for item in dim.split(':'):
                         if item:
-                            dvar = var_dict.find_variable(standard_name=item.lower(),
-                                                          any_scope=False)
+                            for var_dict in var_dicts:
+                                dvar = var_dict.find_variable(standard_name=item,
+                                                              any_scope=False)
+                                if dvar is not None:
+                                    iname = dvar.call_string(var_dict,
+                                                             loop_vars=loop_vars)
+                                    break
+                                # end if
+                            # end for
                             if dvar is None:
                                 try:
                                     dval = int(item)
@@ -713,9 +758,6 @@ class Var:
                                 except ValueError:
                                     iname = None
                                 # end try
-                            else:
-                                iname = dvar.call_string(var_dict,
-                                                         loop_vars=loop_vars)
                             # end if
                         else:
                             iname = ''
@@ -724,8 +766,9 @@ class Var:
                             lname = lname + isep + iname
                             isep = ':'
                         else:
-                            errmsg = 'No local variable {} in {}{}'
+                            errmsg = 'No local variable {} in variable dictionaries'
                             ctx = context_string(self.context)
+                            # DJS CHECK THIS
                             dname = var_dict.name
                             #raise CCPPError(errmsg.format(item, dname, ctx))
                         # end if
@@ -885,6 +928,14 @@ class Var:
             # end while
         # end if
         return iter(children) if children else None
+
+    @property
+    def components(self):
+        """Return the list of this object's components"""
+        return self.__components
+
+    def add_component(self, new_component):
+        self.__components.append(new_component)
 
     @property
     def var(self):
@@ -1125,7 +1176,7 @@ class Var:
         else:
             comma = ' '
         # end if
-        if self.get_prop_value('target'):
+        if self.components:
             targ = ", target"
         else:
             targ = ""
@@ -1608,7 +1659,7 @@ class VarDictionary(OrderedDict):
         return vlist
 
     def add_variable(self, newvar, run_env, exists_ok=False, gen_unique=False,
-                     adjust_intent=False):
+                     adjust_intent=False, add_children=False):
         """Add <newvar> if it does not conflict with existing entries
         If <exists_ok> is True, attempting to add an identical copy is okay.
         If <gen_unique> is True, a new local_name will be created if a
@@ -1726,9 +1777,16 @@ class VarDictionary(OrderedDict):
         if aref is not None:
             pname = aref.group(1).strip()
             pvar = self.find_local_name(pname)
+            array_pieces = aref.group(2).split(',')
             if pvar is not None:
                 newvar.parent = pvar
             # end if
+            for array_piece in array_pieces:
+                if array_piece.strip() != ':':
+                    pvar = self.find_variable(standard_name=array_piece.strip())
+                    if pvar:
+                        newvar.add_child(pvar)
+                    # end if
         # end if
         # If we make it to here without an exception, add the variable
         if standard_name not in self:
@@ -1737,6 +1795,12 @@ class VarDictionary(OrderedDict):
         lname = lname.lower()
         if lname not in self.__local_names:
             self.__local_names[lname] = standard_name
+        # end if
+        if newvar.children() and add_children:
+            for child in newvar.children():
+                self.add_variable(child, run_env, exists_ok=exists_ok, gen_unique=gen_unique,
+                     adjust_intent=adjust_intent)
+            # end for
         # end if
 
     def remove_variable(self, standard_name):
@@ -1809,7 +1873,8 @@ class VarDictionary(OrderedDict):
 
     def find_variable(self, standard_name=None, source_var=None,
                       any_scope=True, clone=None,
-                      search_call_list=False, loop_subst=False):
+                      search_call_list=False, loop_subst=False,
+                      check_components=True):
         """Attempt to return the variable matching <standard_name>.
         if <standard_name> is None, the standard name from <source_var> is used.
         It is an error to pass both <standard_name> and <source_var> if
@@ -1839,16 +1904,43 @@ class VarDictionary(OrderedDict):
             var = CCPP_CONSTANT_VARS[standard_name]
         elif standard_name in self:
             var = self[standard_name]
-        elif any_scope and (self.__parent_dict is not None):
-            src_clist = search_call_list
-            var = self.__parent_dict.find_variable(standard_name=standard_name,
+        else:
+            # Look in the DDTs
+            var = None
+            if check_components:
+                for var_check in self:
+                    var_in_object = self[var_check]
+                    ddt_components = var_in_object.components
+                    for component in ddt_components:
+                        if component.get_prop_value('standard_name') == standard_name:
+                            var = component
+                        else:
+                            if component.children():
+                                for child in component.children():
+                                    if child.get_prop_value('standard_name') == standard_name:
+                                        var = child
+                                    # end if
+                                # end for
+                            # end if
+                        # end if
+                    # end for
+                # end for
+            # end if
+            if not var:
+                if any_scope:
+                    if self.__parent_dict is not None:
+                        src_clist = search_call_list
+                        var = self.__parent_dict.find_variable(standard_name=standard_name,
                                                    source_var=source_var,
                                                    any_scope=any_scope,
                                                    clone=clone,
                                                    search_call_list=src_clist,
-                                                   loop_subst=loop_subst)
-        else:
-            var = None
+                                                   loop_subst=loop_subst,
+                                                   check_components=check_components)
+                else:
+                    var = None
+                # end if
+            # end if
         # end if
         if (var is None) and (clone is not None):
             lname = clone.get_prop_value['local_name']
@@ -2179,55 +2271,20 @@ class VarDictionary(OrderedDict):
         # end while
         return newvar
 
-def write_ptr_def(outfile, name, pointer_type, host_dict, indent):
+def write_ptr_def(outfile, indent, name, kind, dimstr, vtype, extra_space=0):
     """Write the definition line for local null pointer declaration to <outfile>."""
-
-    # If the number of threads, <var_thrd>, is provided by <host_dict>, declare
-    # local pointer with this dimensionality.
     comma = ', '
-    dims  = '1'
-    var_thrd = host_dict.find_variable(standard_name='ccpp_thread_count',any_scope=True)
-    if var_thrd:
-        dims = "1:" + host_dict.var_call_string(var_thrd)
-    # end if
-
-    # Write local pointer variable definition.
-    dstr = "type({pointer_type}){comma} dimension({dims}) :: {name}"
-    outfile.write(dstr.format(pointer_type=pointer_type, comma=comma, dims=dims, name=name),indent)
-
-def write_ptr_type_def(outfile, var, name, indent):
-    """Write type defintion for local pointer."""
-
-    # Grab attributes needed for definition.
-    kind = var.get_prop_value('kind')
-    dims = var.get_dimensions()
-    if var.is_ddt():
-        vtype = 'type'
-    else:
-        vtype = var.get_prop_value('type')
-    # end if
-    if dims:
-        dimstr = '(:' + ',:'*(len(dims) - 1) + ')'
-    else:
-        dimstr = ''
-    # endif
-
-    # Write local pointer type definition.
-    dstrA = "type :: {name}"
     if kind:
-        if dims:
-            dstrB = "{type}({kind}), dimension{dimstr}, pointer :: p => null()"
-        else:
-            dstrB = "{type}({kind}), pointer :: p => null()"
-        # end if
+        dstr = "{type}({kind}){cspace}pointer          :: {name}{dims}{cspace2} => null()"
+        cspace = comma + ' '*(extra_space + 20 - len(vtype) - len(kind))
+        cspace2 = ' '*(20 -len(name) - len(dimstr))
     else:
-        dstrB = "{type}, dimension{dimstr}, pointer :: p => null()"
+        dstr = "{type}{cspace}pointer          :: {name}{dims}{cspace2} => null()"
+        cspace = comma + ' '*(extra_space + 22 - len(vtype))
+        cspace2 = ' '*(20 -len(name) - len(dimstr))
     # end if
-    dstrC = "end type {name}"
-    outfile.write(dstrA.format(name=name), indent)
-    outfile.write(dstrB.format(type=vtype, kind=kind, dimstr=dimstr), indent+1)
-    outfile.write(dstrC.format(name=name), indent)
-# end def
+    outfile.write(dstr.format(type=vtype, kind=kind, name=name, dims=dimstr,
+                              cspace=cspace, cspace2=cspace2), indent)
 
 ###############################################################################
 

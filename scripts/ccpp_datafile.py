@@ -27,7 +27,7 @@ from metadata_table import UNKNOWN_PROCESS_TYPE
 from metavar import Var
 from parse_tools import read_xml_file, write_xml_file
 from parse_tools import ParseContext, ParseSource
-from suite_objects import VerticalLoop, Subcycle
+from suite_objects import  Subcycle
 
 # Global data
 _INDENT_STR = "  "
@@ -890,7 +890,7 @@ def _new_var_entry(parent, var, full_entry=True):
     >>> var = Var({'local_name' : 'foo', 'standard_name' : 'hi_mom', 'units' : 'm s-1', 'dimensions' : '(horizontal_loop_extent)', 'type' : 'real', 'intent' : 'in'}, ParseSource('vname', 'DDT', ParseContext()), _MVAR_DUMMY_RUN_ENV)
     >>> _new_var_entry(parent, var)
     >>> table_entry_pretty_print(parent, 0)
-    '<variables>\\n  <var name=hi_mom intent=in local_name=foo active=.true. kind=kind_phys persistence=timestep type=real units=m s-1>\\n    <dimensions>\\n      horizontal_loop_extent\\n    </dimensions>\\n    <source_type>\\n      ddt\\n    </source_type>\\n    <source_name>\\n      vname\\n    </source_name>\\n  </var>\\n</variables>\\n'
+    '<variables>\\n  <var name=hi_mom intent=in local_name=foo active=.true. diagnostic_name=foo kind=kind_phys persistence=timestep type=real units=m s-1>\\n    <dimensions>\\n      horizontal_loop_extent\\n    </dimensions>\\n    <source_type>\\n      ddt\\n    </source_type>\\n    <source_name>\\n      vname\\n    </source_name>\\n  </var>\\n</variables>\\n'
 
     >>> parent = ET.fromstring('<variables></variables>')
     >>> _new_var_entry(parent, var, full_entry=False)
@@ -1093,9 +1093,6 @@ def _add_suite_object(parent, suite_object):
     ptype = suite_object.phase_type
     if ptype:
         obj_elem.set("phase", ptype)
-    # end if
-    if isinstance(suite_object, VerticalLoop):
-        obj_elem.set("dimension_name", suite_object.dimension_name)
     # end if
     if isinstance(suite_object, Subcycle):
         obj_elem.set("loop", suite_object._loop)

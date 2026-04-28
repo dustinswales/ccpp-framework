@@ -501,7 +501,7 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
         var_dicts = [host_model, const_dict]
         # Figure out which dictionary has the variable
         for vdict in var_dicts:
-            hvar = vdict.find_variable(standard_name=stdname, any_scope=False)
+            hvar = vdict.find_variable(standard_name=stdname, any_scope=False, check_components=False)
             if hvar is not None:
                 var_dict = vdict
                 break
@@ -512,16 +512,10 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
             raise CCPPError(errmsg)
         # End if
         if stdname not in CCPP_CONSTANT_VARS:
-            lname = var_dict.var_call_string(hvar, loop_vars=loop_vars, use_parents=use_parents)
-            if (lname not in parent_ddt_list):
-                if (hvar.is_ddt()):
-                    hmvars.append(f"{lname}={lname}")
-                else:
-                    hmvars.append(f"{sp_lname}={lname}")
-                # end if
-                parent_ddt_list.append(lname)
-            # end if
-        # end if    # End for
+            lname = var_dict.var_call_string(hvar)
+            hmvars.append(f"{sp_lname}={lname}")
+        # End if
+    # End for
     return ', '.join(hmvars)
 
 
@@ -741,12 +735,12 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                     cap.write("return", 4)
                     cap.write("end if", 3)
                     # Allocate the suite's dynamic constituents array
-                    size_string = "0+"
+                    size_string = "0 +"
                     for var in host_local_vars.variable_list():
                         vtype = var.get_prop_value('type')
                         if vtype == 'ccpp_constituent_properties_t':
                             local_name = var.get_prop_value('local_name')
-                            size_string += f"size({local_name})+"
+                            size_string += f"size({local_name}) +"
                         # end if
                     # end for
                     if not has_dyn_consts:

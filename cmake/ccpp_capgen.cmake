@@ -1,7 +1,6 @@
 # CMake wrapper for ccpp_capgen.py
 # Currently meant to be a CMake API needed for generating caps for regression tests.
 #
-# CAPGEN_DEBUG              - ON/OFF (Default: OFF) - Enables debug capability through ccpp_capgen.py
 # CAPGEN_EXPECT_THROW_ERROR - ON/OFF (Default: OFF) - Scans ccpp_capgen.py log for error string and errors if not found.
 # HOST_NAME                 - String name of host
 # OUTPUT_ROOT               - String path to put generated caps
@@ -10,8 +9,8 @@
 # SCHEMEFILES               - CMake list of scheme metadata files
 # SUITES                    - CMake list of suite xml files
 function(ccpp_capgen)
-  set(optionalArgs CAPGEN_DEBUG CAPGEN_EXPECT_THROW_ERROR)
-  set(oneValueArgs HOST_NAME OUTPUT_ROOT VERBOSITY)
+  set(optionalArgs CAPGEN_EXPECT_THROW_ERROR)
+  set(oneValueArgs HOST_NAME OUTPUT_ROOT VERBOSITY KIND_SPECS)
   set(multi_value_keywords HOSTFILES SCHEMEFILES SUITES)
 
   cmake_parse_arguments(arg "${optionalArgs}" "${oneValueArgs}" "${multi_value_keywords}" ${ARGN})
@@ -23,9 +22,6 @@ function(ccpp_capgen)
   endif()
 
   # Interpret parsed arguments
-  if(DEFINED arg_CAPGEN_DEBUG)
-    list(APPEND CCPP_CAPGEN_CMD_LIST "--debug")
-  endif()
   if(DEFINED arg_HOSTFILES)
     list(JOIN arg_HOSTFILES "," HOSTFILES_SEPARATED)
     list(APPEND CCPP_CAPGEN_CMD_LIST "--host-files" "${HOSTFILES_SEPARATED}")
@@ -50,6 +46,19 @@ function(ccpp_capgen)
     string(REPEAT "--verbose " ${arg_VERBOSITY} VERBOSE_PARAMS_SEPARATED)
     separate_arguments(VERBOSE_PARAMS UNIX_COMMAND "${VERBOSE_PARAMS_SEPARATED}")
     list(APPEND CCPP_CAPGEN_CMD_LIST ${VERBOSE_PARAMS})
+  endif()
+  if(DEFINED arg_KIND_SPECS)
+    string(REPLACE "," ";" KIND_SPEC_LIST "${arg_KIND_SPECS}")
+    set(KIND_ARGS "")               # start empty
+    foreach(pair IN LISTS KIND_SPEC_LIST)
+    # Append each pair prefixed with --kind-type and quoted.
+    # The surrounding double‑quotes are added explicitly so the
+    # resulting string contains them.
+    set(KIND_ARGS "${KIND_ARGS}--kind-type \"${pair}\"")
+    string(STRIP "${KIND_ARGS}" KIND_ARGS)
+  endforeach()
+
+    list(APPEND CCPP_CAPGEN_CMD_LIST ${KIND_SPEC_PARAMS})
   endif()
 
   message(STATUS "Running ccpp_capgen.py from ${CMAKE_CURRENT_SOURCE_DIR}")
