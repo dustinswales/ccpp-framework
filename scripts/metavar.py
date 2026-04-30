@@ -425,8 +425,8 @@ class Var:
         # end if
         return compat
 
-    def adjust_optional(self, src_var):
-        self._prop_dict['optional'] = True
+    #def adjust_optional(self, src_var):
+    #    self._prop_dict['optional'] = True
 
     def adjust_intent(self, src_var):
         """Add an intent to this Var or adjust its existing intent.
@@ -1075,25 +1075,27 @@ class Var:
                             break
                         # end if
                     # end for
-                    if (host_model):
-                        hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
-                        if hvar:
-                            conditional += host_model.var_call_string(hvar)
-                        else:
-                            conditional += dvar.get_prop_value('local_name')
-                        # end if
+                    #if (host_model):
+                    #    hvar  = host_model.find_variable(dvar.get_prop_value('standard_name'))
+                    #    if hvar:
+                    #        conditional += host_model.var_call_string(hvar)
+                    #    else:
+                    #        conditional += dvar.get_prop_value('local_name')
+                    #    # end if
                     # end if
                     if not dvar:
                         print(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                         raise Exception(f"Cannot find variable '{item}' for generating conditional for '{active}'")
                     # end if
+                    conditional += dvar.get_prop_value('local_name')
+                    vars_needed.append(dvar)                    
                 # end try
             # end if
         # end for
         return (conditional, vars_needed)
 
     def write_def(self, outfile, indent, wdict, allocatable=False, target=False,
-                  dummy=False, add_intent=None, extra_space=0, public=False, use_parents=False):
+                  dummy=False, add_intent=None, extra_space=0, public=False):
         """Write the definition line for the variable to <outfile>.
         If <dummy> is True, include the variable's intent.
         If <dummy> is True but the variable has no intent, add the
@@ -1711,11 +1713,11 @@ class VarDictionary(OrderedDict):
                 # Check for optional argument mismatch.
                 # If a variable is optional to ANY Scheme in the Group, adjust
                 # Group definition to always as optional. 
-                vopt = cvar.get_prop_value('optional')
-                dopt = newvar.get_prop_value('optional')
-                if vopt != dopt:
-                    cvar.adjust_optional(newvar)
-                # end if
+                #vopt = cvar.get_prop_value('optional')
+                #dopt = newvar.get_prop_value('optional')
+                #if vopt != dopt:
+                #    cvar.adjust_optional(newvar)
+                ## end if
 
             else:
                 if self.__run_env.logger is not None:
@@ -2033,32 +2035,34 @@ class VarDictionary(OrderedDict):
                                      any_scope=False)
             if self.include_var_in_list(var, std_vars=std_vars,
                                         loop_vars=loop_vars, consts=consts):
-                # If host dictionary provided, use host parent Vars for declaration statements
-                if host_dict:
-                    hvar = host_dict.find_variable(standard_name)
-                    if (hvar is not None):
-                        # Write Host VarDDT declaration statement
-                        try:
-                            hsname = hvar.get_parent_prop('standard_name')
-                            if hsname not in host_var_list:
-                                self.write_ddt_def(outfile, indent, hvar)
-                                host_var_list.append(hsname)
-                            # end if
-                        # Write Host Var declaration statement.
-                        except:
-                            hsname = hvar.get_prop_value('standard_name')
-                            if hsname not in host_var_list:
-                                self[standard_name].write_def(outfile, indent, self,
-                                                              dummy=dummy, use_parents=True)
-                                host_var_list.append(hsname)
-                            # end if
-                        # end try
-                    # end if
-                else:
-                    # DJS: This routine is only called when writing the Groups, which NOW always
-                    # use the host variables as arguments. Can remove this block I believe?
-                    self[standard_name].write_def(outfile, indent, self,
-                                                  dummy=dummy)
+                self[standard_name].write_def(outfile, indent, self,
+                                              dummy=dummy)                
+                ## If host dictionary provided, use host parent Vars for declaration statements
+                #if host_dict:
+                #    hvar = host_dict.find_variable(standard_name)
+                #    if (hvar is not None):
+                #        # Write Host VarDDT declaration statement
+                #        try:
+                #            hsname = hvar.get_parent_prop('standard_name')
+                #            if hsname not in host_var_list:
+                #                self.write_ddt_def(outfile, indent, hvar)
+                #                host_var_list.append(hsname)
+                #            # end if
+                #        # Write Host Var declaration statement.
+                #        except:
+                #            hsname = hvar.get_prop_value('standard_name')
+                #            if hsname not in host_var_list:
+                #                self[standard_name].write_def(outfile, indent, self,
+                #                                              dummy=dummy)
+                #                host_var_list.append(hsname)
+                #            # end if
+                #        # end try
+                #    # end if
+                #else:
+                #    # DJS: This routine is only called when writing the Groups, which NOW always
+                #    # use the host variables as arguments. Can remove this block I believe?
+                #    self[standard_name].write_def(outfile, indent, self,
+                #                                  dummy=dummy)
                 # end if
             # end if
         # end for
@@ -2070,14 +2074,14 @@ class VarDictionary(OrderedDict):
         # end for
 
     # DJS: This could(?) be combined with write_def().
-    def write_ddt_def(self, outfile, indent, hvar):
-        """Write the definition line for the Host DDT variable to <outfile>.
-        Host DDTs are always defined as intent(inout) within the Caps."""
-        kind = hvar.get_parent_prop('kind')
-        name = hvar.get_parent_prop('local_name')
-        dstr = "type({kind}),intent(inout) :: {name}"
-        outfile.write(dstr.format(kind=kind, name=name), indent)
-    # end def
+    #def write_ddt_def(self, outfile, indent, hvar):
+    #    """Write the definition line for the Host DDT variable to <outfile>.
+    #    Host DDTs are always defined as intent(inout) within the Caps."""
+    #    kind = hvar.get_parent_prop('kind')
+    #    name = hvar.get_parent_prop('local_name')
+    #    dstr = "type({kind}),intent(inout) :: {name}"
+    #    outfile.write(dstr.format(kind=kind, name=name), indent)
+    ## end def
 
     @staticmethod
     def loop_var_okay(standard_name, is_run_phase):
@@ -2233,13 +2237,13 @@ class VarDictionary(OrderedDict):
         # end if
         return my_var
 
-    def var_call_string(self, var, loop_vars=None, use_parents=False):
+    def var_call_string(self, var, loop_vars=None):
         """Construct the actual argument string for <var> by translating
         standard names to local names. String includes array bounds.
         if <loop_vars> is present, look there first for array bounds,
         even if usage requires a loop substitution.
         """
-        return var.call_string(self, loop_vars=loop_vars, use_parents=use_parents)
+        return var.call_string(self, loop_vars=loop_vars)
 
     def new_internal_variable_name(self, prefix=None, max_len=63):
         """Find a new local variable name for this dictionary.
@@ -2285,7 +2289,6 @@ def write_ptr_def(outfile, indent, name, kind, dimstr, vtype, extra_space=0):
     # end if
     outfile.write(dstr.format(type=vtype, kind=kind, name=name, dims=dimstr,
                               cspace=cspace, cspace2=cspace2), indent)
-
 ###############################################################################
 
 # List of constant variables which are universally available

@@ -101,16 +101,14 @@ class VarDDT(Var):
         # end if
         return clone_var
 
-    def call_string(self, var_dict, loop_vars=None, use_parents=False):
+    def call_string(self, var_dict, loop_vars=None):
         """Return a legal call string of this VarDDT's local name sequence.
         """
         # XXgoldyXX: Need to add dimensions to this
         call_str = super().get_prop_value('local_name')
-        if (not use_parents):
-            if self.field is not None:
-                call_str += '%' + self.field.call_string(var_dict,
-                                                         loop_vars=loop_vars)
-            # end if
+        if self.field is not None:
+            call_str += '%' + self.field.call_string(var_dict,
+                                                     loop_vars=loop_vars)
         # end if
         # Parse call string and look for any reference to standard_name in local_name.
         # DJS: This is not as involved as the dimension parsing in Var.call_string(),
@@ -303,7 +301,7 @@ class DDTLibrary(dict):
                 # If DDT in our library, we need to add sub-fields recursively,
                 # unless sub-fields already added to library previously.
                 subddt = self[dvtype]
-                self.collect_ddt_fields(var_dict, dvar, run_env, parent=var, ddt=subddt, skip_duplicates=skip_duplicates)
+                self.collect_ddt_fields(var_dict, dvar, run_env, parent=var, ddt=subddt, skip_duplicates=True)
             # end if
             # add_variable only checks the current dictionary. By default,
             # for a DDT, the variable also cannot be in our parent

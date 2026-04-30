@@ -477,7 +477,7 @@ def add_constituent_vars(cap, host_model, suite_list, run_env):
 
 ###############################################################################
 def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
-                         dyn_const=False, use_parents=False):
+                         dyn_const=False):
 ###############################################################################
     """Return the <host_model> controlled call list for <suite_part>.
     <const_dict> is the constituent dictionary"""
@@ -488,7 +488,6 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
     else:
         loop_vars = None
     # end if
-    parent_ddt_list = []
     for sp_var in spart_args:
         stdname = sp_var.get_prop_value('standard_name')
         sp_lname = sp_var.get_prop_value('local_name')
@@ -517,7 +516,6 @@ def suite_part_call_list(host_model, const_dict, suite_part, subst_loop_vars,
         # End if
     # End for
     return ', '.join(hmvars)
-
 
 ###############################################################################
 def write_host_cap(host_model, api, module_name, output_dir, run_env):
@@ -713,7 +711,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                         stmt = "{}if (trim(suite_part) == '{}') then"
                         cap.write(stmt.format(el2_str, pname), 3)
                         call_str = suite_part_call_list(host_model, const_dict,
-                                                        spart, True, use_parents=True)
+                                                        spart, True)
                         cap.write("call {}({})".format(spart.name, call_str), 4)
                         el2_str = 'else '
                     # End for
@@ -729,7 +727,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                     spart = suite.phase_group(stage)
                     dyn_const_array = suite_dynamic_constituent_array_name(host_model, suite.name)
                     call_str = suite_part_call_list(host_model, const_dict, spart, False,
-                                                                       dyn_const=True, use_parents=True)
+                                                                       dyn_const=True)
                     cap.write(f"call {suite.name}_{stage}({call_str})", 3)
                     cap.write(f"if ({errflg_name} /= 0) then", 3)
                     cap.write("return", 4)
@@ -766,7 +764,7 @@ def write_host_cap(host_model, api, module_name, output_dir, run_env):
                 else:
                     spart = suite.phase_group(stage)
                     call_str = suite_part_call_list(host_model, const_dict,
-                                                    spart, False, use_parents=True)
+                                                    spart, False)
                     stmt = "call {}_{}({})"
                     cap.write(stmt.format(suite.name, stage, call_str), 3)
                 # End if

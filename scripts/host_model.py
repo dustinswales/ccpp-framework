@@ -64,8 +64,8 @@ class HostModel(VarDictionary):
                     # encountered earlier and already added to library.
                     if var.is_ddt():
                         self.ddt_lib.collect_ddt_fields(self.__ddt_dict, var,
-                                                        run_env,
-                                                        skip_duplicates=True)
+                                                        run_env)#,
+                                                        #skip_duplicates=True)
                     # End if
                 # End for
             elif header.header_type == 'host':
@@ -81,8 +81,8 @@ class HostModel(VarDictionary):
                         # skip duplicate sub-field entries. These fields were
                         # encountered earlier and already added to library.
                         self.ddt_lib.collect_ddt_fields(self.__ddt_dict, var,
-                                                        run_env,
-                                                        skip_duplicates=True)
+                                                        run_env)#,
+                                                        #skip_duplicates=True)
                     # End if
                 # End for
                 loop_vars = header.variable_list(std_vars=False,

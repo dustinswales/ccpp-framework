@@ -539,7 +539,7 @@ def duplicate_item_error(title, filename, itype, orig_item):
 
 ###############################################################################
 def parse_host_model_files(host_filenames, host_name, run_env,
-                           known_ddts=list(), debug=None):
+                           known_ddts=list()):
 ###############################################################################
     """
     Gather information from host files (e.g., DDTs, registry) and
@@ -567,11 +567,10 @@ def parse_host_model_files(host_filenames, host_name, run_env,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        # Compare Host metadata tables (DEBUG mode only).
-        if (debug is not None):
-            logger.info('Comparing {}, to {}.'.format(fort_file,filename))
-            check_fortran_against_metadata(mheaders, fheaders,
-                                           filename, fort_file, logger)
+        # Compare Host metadata tables
+        logger.info('Comparing {}, to {}.'.format(fort_file,filename))
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger)
         # end if
         # Check for host dependencies (will raise error if reqired
         #                              dependency file not found)
@@ -618,7 +617,7 @@ def parse_host_model_files(host_filenames, host_name, run_env,
 
 ###############################################################################
 def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
-                       known_ddts=list(), relative_source_path=False, debug=None):
+                       known_ddts=list(), relative_source_path=False):
 ###############################################################################
     """
     Gather information from scheme files (e.g., init, run, and finalize
@@ -648,12 +647,11 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        # Compare Scheme metadata tables (DEBUG mode only).
-        if (debug is not None):
-            logger.info('Comparing {}, to {}.'.format(fort_file,filename))
-            check_fortran_against_metadata(mheaders, fheaders,
-                                           filename, fort_file, logger,
-                                           fortran_routines=additional_routines)
+        # Compare Scheme metadata tables
+        logger.info('Comparing {}, to {}.'.format(fort_file,filename))
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger,
+                                       fortran_routines=additional_routines)
         # end if
         # Check for scheme dependencies (will raise error if reqired 
         #                                dependency file not found)
