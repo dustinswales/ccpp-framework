@@ -11,9 +11,13 @@ Framework runtime information and parameter values.
 import argparse
 import os
 from parse_tools import verbose
-
 _EPILOG = '''
 '''
+
+## List of kinds in ISO_FORTRAN_ENV (that are useful in CCPP)
+## Note: this is defined here instead of in fortran_tools to prevent a
+##       circular dependency
+ISO_FORTRAN_KINDS = ['int8', 'int16', 'int32', 'int64', 'real32', 'real64', 'real128']
 
 ###############################################################################
 class CCPPFrameworkEnv:
@@ -26,11 +30,24 @@ class CCPPFrameworkEnv:
                  preproc_directives=[], generate_docfiles=False, host_name='',
                  kind_types=[], use_error_obj=False, force_overwrite=False,
                  output_root=os.getcwd(), ccpp_datafile="datatable.xml",
-                 debug=False, ccpp_cfgfile=None):
+                 ccpp_cfgfile=None):
         """Initialize a new CCPPFrameworkEnv object from the input arguments.
         <ndict> is a dict with the parsed command-line arguments (or a
            dictionary created with the necessary arguments).
         <logger> is a logger to be used by users of this object.
+        <kind_types> is a list defining the Fortran kind types which will be
+           public in ccpp_kinds.F90.
+           It has entries of the form:
+           kind_type=kind_specification[:kind_module]
+           where <kind_type> is a string defining the kind type name,
+           <kind_specification> is the Fortran kind parameter name
+           (e.g., 'REAL64'), and <kind_module> is the (optional) Fortran
+           module that contains <kind_specification>. If <kind_module> is
+           not specified, then <kind_specification> must be a type defined in
+           ISO_FORTRAN_ENV.
+           It is allowed to have a duplicate entry for <kind_type> as long as
+           it does not specify a different type or module.
+           <kind_type> will be made available as a kind in ccpp_kinds.F90
         """
         emsg = ''
         esep = ''
@@ -143,30 +160,44 @@ class CCPPFrameworkEnv:
         # end if
         self.__generate_host_cap = self.host_name != ''
         self.__kind_dict = {}
-        if ndict and ("kind_type" in ndict):
-            kind_list = ndict["kind_type"]
-            del ndict["kind_type"]
+        if ndict and ("kind_types" in ndict):
+            kind_list = ndict["kind_types"]
+            del ndict["kind_types"]
         else:
             kind_list = kind_types
         # end if
         # Note that the command line uses repeated calls to 'kind_type'
         for kind in kind_list:
             kargs = [x.strip() for x in kind.strip().split('=')]
+            errstr = ""
             if len(kargs) != 2:
-                emsg += esep
-                emsg += "Error: '{}' is not a valid kind specification "
-                emsg += "(should be of the form <kind_name>=<kind_spec>)"
-                emsg = emsg.format(kind)
+                emsg += (f"{esep}Error: '{kind}' is not a valid kind specification "
+                         "(should be of the form <kind_name>=<kind_spec>)")
                 esep = '\n'
             else:
                 kind_name, kind_spec = kargs
-                # Do not worry about duplicates, just use last value
-                self.__kind_dict[kind_name] = kind_spec
+                kind_specs = kind_spec.split(':')
+                if len(kind_specs) == 1:
+                    errstr = self.add_kind_type(kind_name, kind_specs[0])
+                elif len(kind_specs) > 2:
+                    emsg += (f"{esep}Error: Invalid format for '{kind_name}' "
+                             "should be [<kind_spec>] or [<kind_spec>, <module name>]")
+                    esep = '\n'
+                else:
+                    errstr = self.add_kind_type(kind_name, kind_specs[0], kind_specs[1])
+                # end if
+                if errstr:
+                    emsg += f"{esep}{errstr}"
+                    esep = '\n'
+                # end if
             # end if
         # end for
+
         # We always need a kind_phys so add a default if necessary
         if "kind_phys" not in self.__kind_dict:
-            self.__kind_dict["kind_phys"] = "REAL64"
+            # Use ISO-Fortran 64-bit real
+            # definition for default physics kind:
+            self.__kind_dict['kind_phys'] = ['REAL64', 'ISO_FORTRAN_ENV']
         # end if
         if ndict and ('use_error_obj' in ndict):
             self.__use_error_obj = ndict['use_error_obj']
@@ -199,6 +230,7 @@ class CCPPFrameworkEnv:
             self.__datatable_file = os.path.join(self.output_dir,
                                                  self.datatable_file)
         # end if
+
         # Are we provided a CCPP configuration file?
         if ndict and ('ccpp_cfgfile' in ndict):
             self.__ccpp_cfgfile = ndict['ccpp_cfgfile']
@@ -206,13 +238,6 @@ class CCPPFrameworkEnv:
         else:
             self.__ccpp_cfgfile = ccpp_cfgfile
         # endif
-        # Enable or disable variable allocation checks
-        if ndict and ('debug' in ndict):
-            self.__debug = ndict['debug']
-            del ndict['debug']
-        else:
-            self.__debug = debug
-        # end if
         self.__logger = logger
         ## Check to see if anything is left in dictionary
         if ndict:
@@ -276,15 +301,67 @@ class CCPPFrameworkEnv:
         CCPPFrameworkEnv object."""
         return self.__generate_host_cap
 
+    def kind_module(self, kind_type):
+        """Return the Fortran module that
+        contains the kind specification
+        for kind type, <kind_type>,
+        for this CCPPFrameworkEnv object.
+        If there is no entry for <kind_type>,
+        return None."""
+        kind_mod = None
+        if kind_type in self.__kind_dict:
+            # The kind module should always be
+            # the second element in the list:
+            kind_mod = self.__kind_dict[kind_type][1]
+        # end if
+        return kind_mod
+
     def kind_spec(self, kind_type):
         """Return the kind specification for kind type, <kind_type>
         for this CCPPFrameworkEnv object.
         If there is no entry for <kind_type>, return None."""
         kind_spec = None
         if kind_type in self.__kind_dict:
-            kind_spec = self.__kind_dict[kind_type]
+            # The kind specification should always be
+            # the first element in the list:
+            kind_spec = self.__kind_dict[kind_type][0]
         # end if
         return kind_spec
+
+    def add_kind_type(self, new_ccpp_kind, new_kind, new_module=None):
+        """Add <new_kind> to our kind dictionary.
+        <new_module> is the name of the Fortran module that defined <new_kind>
+        <new_ccpp_kind> is the kind name as published in ccpp_kinds.f90
+        This method assumes the inputs have been parsed.
+        Returns None or an error string if <new_kind> is already in the
+        kinds dictionary.
+        """
+        emsg = ""
+        esep = ""
+        # Make sure we have a valid module
+        if new_module == None:
+            if new_kind.lower() in ISO_FORTRAN_KINDS:
+                new_module = 'ISO_FORTRAN_ENV'
+            else:
+                emsg += (f"{esep}Error: unknown kind, '{new_kind}' "
+                         "and no Fortran module name specified")
+                esep = '\n'
+            # end if
+        # end if
+        # Check for incompatible duplicates
+        if ((new_ccpp_kind in self.__kind_dict) and
+            ((self.kind_spec(new_ccpp_kind) != new_kind) or
+             (self.kind_module(new_ccpp_kind) != new_module))):
+            emsg += (f"{esep}Error: '{new_ccpp_kind} = [{new_kind}, {new_module}]'"
+                     f"is an invalid duplicate. {new_ccpp_kind} "
+                     f"is already '{str(self.__kind_dict[new_ccpp_kind])}")
+            esep = '\n'
+        else:
+            if new_module:
+                self.__kind_dict[new_ccpp_kind] = [new_kind, new_module]
+            # end if
+        # end if
+        return emsg
 
     def kind_types(self):
         """Return a list of all kind types defined in this
@@ -293,7 +370,7 @@ class CCPPFrameworkEnv:
 
     @property
     def verbose(self):
-        """Return true if debug enabled for the CCPPFrameworkEnv's
+        """Return true if verbose enabled for the CCPPFrameworkEnv's
         logger object."""
         return (self.logger and verbose(self.logger))
 
@@ -331,12 +408,6 @@ CCPPFrameworkEnv object."""
         """Return the <ccpp_cfg_file> property for this
         CCPPFrameworkEnv object."""
         return self.__ccpp_cfgfile
-
-    @property
-    def debug(self):
-        """Return the <debug> property for this
-        CCPPFrameworkEnv object."""
-        return self.__debug
 
     @property
     def logger(self):
@@ -397,12 +468,12 @@ If this option is passed, a host model cap is generated''')
                         help='Remove files created by this script, then exit')
 
     parser.add_argument("--kind-type", type=str, action='append',
-                        metavar="kind_type", default=list(),
-                        help="""Data size for real(<kind_type>) data.
+                        metavar="kind_spec", dest="kind_types", default=list(),
+                        help="""Data size for <kind_type> data (e.g., real(<kind_type>)).
 Entry in the form of <kind_type>=<kind_val>
 e.g., --kind-type "kind_phys=REAL64"
 Enter more than one --kind-type entry to define multiple CCPP kinds.
-<kind_val> SHOULD be a valid ISO_FORTRAN_ENV type""")
+<kind_val> MUST be a valid ISO_FORTRAN_ENV type""")
 
     parser.add_argument("--generate-docfiles",
                         metavar='HTML | Latex | HTML,Latex', type=str,
@@ -415,9 +486,6 @@ instead of ccpp_error_message and ccpp_error_code.""")
     parser.add_argument("--force-overwrite", action='store_true', default=False,
                         help="""Overwrite all CCPP-generated files, even
 if unmodified""")
-
-    parser.add_argument("--debug", action='store_true', default=False,
-                        help="Add variable allocation checks to assist debugging")
 
     parser.add_argument("--verbose", action='count', default=0,
                         help="Log more activity, repeat for increased output")

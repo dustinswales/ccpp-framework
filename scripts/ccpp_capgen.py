@@ -6,10 +6,6 @@ physics suite runtime code, and CCPP framework documentation.
 """
 
 # Python library imports
-from __future__ import absolute_import
-from __future__ import unicode_literals
-from __future__ import print_function
-
 import sys
 import os
 import logging
@@ -163,9 +159,14 @@ def create_kinds_file(run_env, output_dir):
     with FortranWriter(kinds_filepath, "w",
                        "kinds for CCPP", KINDS_MODULE) as kindf:
         for kind_type in kind_types:
-            use_stmt = "use ISO_FORTRAN_ENV, only: {} => {}"
-            kindf.write(use_stmt.format(kind_type,
-                                        run_env.kind_spec(kind_type)), 1)
+            kind_spec = run_env.kind_spec(kind_type)
+            use_stmt = f"use {run_env.kind_module(kind_type)},"
+            if kind_spec == kind_type:
+                use_stmt += f" only: {kind_type}"
+            else:
+                use_stmt += f" only: {kind_type} => {kind_spec}"
+            # end if
+            kindf.write(use_stmt, 1)
         # end for
         kindf.write_preamble()
         for kind_type in kind_types:
@@ -538,7 +539,7 @@ def duplicate_item_error(title, filename, itype, orig_item):
 
 ###############################################################################
 def parse_host_model_files(host_filenames, host_name, run_env,
-                           known_ddts=list(), debug=None):
+                           known_ddts=list()):
 ###############################################################################
     """
     Gather information from host files (e.g., DDTs, registry) and
@@ -566,12 +567,10 @@ def parse_host_model_files(host_filenames, host_name, run_env,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        # Compare Host metadata tables (DEBUG mode only).
-        if (debug is not None):
-            logger.info('Comparing {}, to {}.'.format(fort_file,filename))
-            check_fortran_against_metadata(mheaders, fheaders,
-                                           filename, fort_file, logger)
-        # end if
+        # Compare Host metadata tables.
+        logger.info('Comparing {}, to {}.'.format(fort_file,filename))
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger)
         # Check for host dependencies (will raise error if reqired
         #                              dependency file not found)
         depends = find_dependency_files(filename, mtables)
@@ -617,7 +616,7 @@ def parse_host_model_files(host_filenames, host_name, run_env,
 
 ###############################################################################
 def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
-                       known_ddts=list(), relative_source_path=False, debug=None):
+                       known_ddts=list(), relative_source_path=False):
 ###############################################################################
     """
     Gather information from scheme files (e.g., init, run, and finalize
@@ -647,13 +646,11 @@ def parse_scheme_files(scheme_filenames, run_env, skip_ddt_check=False,
         for sect in [x.sections() for x in ftables]:
             fheaders.extend(sect)
         # end for
-        # Compare Scheme metadata tables (DEBUG mode only).
-        if (debug is not None):
-            logger.info('Comparing {}, to {}.'.format(fort_file,filename))
-            check_fortran_against_metadata(mheaders, fheaders,
-                                           filename, fort_file, logger,
-                                           fortran_routines=additional_routines)
-        # end if
+        # Compare Scheme metadata tables.
+        logger.info('Comparing {}, to {}.'.format(fort_file,filename))
+        check_fortran_against_metadata(mheaders, fheaders,
+                                       filename, fort_file, logger,
+                                       fortran_routines=additional_routines)
         # Check for scheme dependencies (will raise error if reqired 
         #                                dependency file not found)
         depends = find_dependency_files(filename, mtables)
@@ -775,7 +772,7 @@ def capgen(run_env, return_db=False):
     timing_label.append('Register DDTs')
     # Handle the host files
     host_model, host_ffiles, host_mods, host_depends = \
-        parse_host_model_files(host_files, host_name, run_env, known_ddts=scheme_ddts, debug=run_env.debug)
+        parse_host_model_files(host_files, host_name, run_env, known_ddts=scheme_ddts)
     timing_info.append(time.time())
     timing_label.append('Parse Host files')
     # Next, parse the scheme files
@@ -788,7 +785,7 @@ def capgen(run_env, return_db=False):
     timing_label.append('Parse constituent file')
     host_ddts = register_ddts(host_files)
     scheme_headers, scheme_tdict, scheme_ffiles, scheme_depends = \
-        parse_scheme_files(scheme_files, run_env, known_ddts=host_ddts, debug=run_env.debug)
+        parse_scheme_files(scheme_files, run_env, known_ddts=host_ddts)
     timing_info.append(time.time())
     timing_label.append('Parse Scheme files')
     if run_env.verbose:

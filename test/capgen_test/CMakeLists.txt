@@ -6,9 +6,10 @@
 #
 #------------------------------------------------------------------------------
 set(SCHEME_FILES       "setup_coeffs" "temp_set" "temp_adjust" "temp_calc_adjust")
-set(SUITE_SCHEME_FILES "make_ddt" "environ_conditions")
+set(SUITE_SCHEME_FILES "make_ddt" "environ_conditions" "temp_kinds")
 set(HOST_FILES         "test_host_data" "test_host_mod")
 set(SUITE_FILES        "ddt_suite.xml" "temp_suite.xml")
+set(KIND_TYPE          "kind_phys=REAL64")
 
 # HOST is the name of the executable we will build.
 # We assume there are files ${HOST}.meta and ${HOST}.F90 in CMAKE_SOURCE_DIR
@@ -38,22 +39,24 @@ foreach(sfile ${SUITE_SCHEME_FILES})
   find_file(fort_file "${sfile}.F90" NO_CACHE
             HINTS ${CMAKE_CURRENT_SOURCE_DIR}
             HINTS ${CMAKE_CURRENT_SOURCE_DIR}/source_dir1
-            HINTS ${CMAKE_CURRENT_SOURCE_DIR}/source_dir2)
+            HINTS ${CMAKE_CURRENT_SOURCE_DIR}/source_dir2
+            HINTS ${CMAKE_CURRENT_SOURCE_DIR}/adjust)
   list(APPEND SUITE_SCHEME_FORTRAN_FILES ${fort_file})
   unset(fort_file)
 endforeach()
+
 list(TRANSFORM SUITE_SCHEME_FILES APPEND ".meta" OUTPUT_VARIABLE SUITE_SCHEME_META_FILES)
 list(TRANSFORM HOST_FILES         APPEND ".F90"  OUTPUT_VARIABLE CAPGEN_HOST_FORTRAN_FILES)
 list(TRANSFORM HOST_FILES         APPEND ".meta" OUTPUT_VARIABLE CAPGEN_HOST_METADATA_FILES)
 
 list(APPEND CAPGEN_HOST_METADATA_FILES "${HOST}.meta")
 
-ccpp_capgen(CAPGEN_DEBUG ON
-            VERBOSITY ${CCPP_VERBOSITY}
+ccpp_capgen(VERBOSITY ${CCPP_VERBOSITY}
             HOSTFILES ${CAPGEN_HOST_METADATA_FILES}
             SCHEMEFILES ${SCHEME_META_FILES} ${SUITE_SCHEME_META_FILES}
             SUITES ${SUITE_FILES}
             HOST_NAME ${HOST}
+            KIND_TYPES ${KIND_TYPES}
             OUTPUT_ROOT "${CCPP_CAP_FILES}")
 
 # Retrieve the list of Fortran files required for test host from datatable.xml and set to CCPP_CAPS_LIST
@@ -68,8 +71,25 @@ add_library(CAPGEN_TESTLIB OBJECT ${SCHEME_FORTRAN_FILES}
 
 # Setup test executable with needed dependencies
 add_executable(capgen_host_integration test_capgen_host_integration.F90 ${HOST}.F90)
+if(OPENMP)
+  target_link_libraries(capgen_host_integration PRIVATE OpenMP::OpenMP_Fortran)
+endif()
 target_link_libraries(capgen_host_integration PRIVATE CAPGEN_TESTLIB test_utils)
 target_include_directories(capgen_host_integration PRIVATE "$<TARGET_PROPERTY:test_utils,BINARY_DIR>")
 
 # Add executable to be called with ctest
-add_test(NAME ctest_capgen_host_integration COMMAND capgen_host_integration)
+add_test(NAME ctest_capgen_host_integration_omp1
+         COMMAND capgen_host_integration)
+
+add_test(NAME ctest_capgen_host_integration_omp2
+         COMMAND capgen_host_integration)
+
+set_tests_properties(ctest_capgen_host_integration_omp1
+    PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1"
+)
+
+set_tests_properties(ctest_capgen_host_integration_omp2
+    PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=2"
+)
